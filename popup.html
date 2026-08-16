@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>KH Auto Next</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { width: 100%; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      /* Lấp hết bề ngang khung chứa, không chừa khoảng trắng bên phải.
+         min-width 340px = bề rộng popup extension tự lấy (Chrome shrink-to-fit);
+         mở popup.html trong tab thì giãn full theo tab. KHÔNG đặt max-width,
+         vì max-width chặn lại là sinh ra vùng trống bên phải. */
+      width: 100%;
+      min-width: 340px;
+      padding: 14px;
+      background: #f7f8fa;
+      color: #1f2937;
+    }
+    h1 {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      color: #0f4c81;
+    }
+    .section { margin-bottom: 12px; }
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      margin-bottom: 4px;
+      color: #4b5563;
+    }
+    textarea {
+      width: 100%;
+      height: 120px;
+      padding: 8px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-family: "SF Mono", Menlo, monospace;
+      font-size: 12px;
+      resize: vertical;
+    }
+    textarea:focus { outline: none; border-color: #0f4c81; }
+    select {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 13px;
+      background: white;
+      cursor: pointer;
+    }
+    select:focus { outline: none; border-color: #0f4c81; }
+    .row { display: flex; gap: 6px; }
+    button {
+      flex: 1;
+      padding: 8px 10px;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-primary { background: #0f4c81; color: white; }
+    .btn-primary:hover { background: #0d3f6b; }
+    .btn-secondary { background: #e5e7eb; color: #1f2937; }
+    .btn-secondary:hover { background: #d1d5db; }
+    .btn-success { background: #16a34a; color: white; }
+    .btn-success:hover { background: #15803d; }
+    .btn-warning { background: #f59e0b; color: white; }
+    .btn-warning:hover { background: #d97706; }
+    .btn-danger { background: #dc2626; color: white; }
+    .btn-danger:hover { background: #b91c1c; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .progress {
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      padding: 10px;
+      text-align: center;
+    }
+    .progress-current {
+      font-size: 20px;
+      font-weight: 600;
+      color: #0f4c81;
+      font-family: "SF Mono", Menlo, monospace;
+      margin-bottom: 4px;
+      word-break: break-all;
+    }
+    .progress-info {
+      font-size: 12px;
+      color: #6b7280;
+    }
+    .status {
+      font-size: 11px;
+      color: #6b7280;
+      text-align: center;
+      margin-top: 8px;
+      min-height: 14px;
+    }
+    .status.error { color: #dc2626; }
+    .status.success { color: #16a34a; }
+    .hint {
+      font-size: 11px;
+      color: #6b7280;
+      margin-top: 6px;
+      line-height: 1.4;
+    }
+    kbd {
+      background: #e5e7eb;
+      border-radius: 3px;
+      padding: 1px 5px;
+      font-family: "SF Mono", Menlo, monospace;
+      font-size: 10px;
+      border: 1px solid #d1d5db;
+    }
+    .key-legend { margin: 4px 0 6px; }
+    .key-legend .kl-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 2px 0;
+    }
+    .key-legend .kl-key {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      border-radius: 4px;
+      font-family: "SF Mono", Menlo, monospace;
+      font-size: 10px;
+      font-weight: 700;
+    }
+    .key-legend .kl-key.pass { background: #dcfce7; color: #15803d; }
+    .key-legend .kl-key.fail { background: #fee2e2; color: #b91c1c; }
+    .key-legend .kl-score {
+      flex: 0 0 22px;
+      text-align: right;
+      font-size: 11px;
+      font-weight: 600;
+      color: #374151;
+    }
+    .key-legend .kl-desc {
+      flex: 1 1 auto;
+      font-size: 11px;
+      color: #4b5563;
+      line-height: 1.3;
+    }
+  </style>
+</head>
+<body>
+  <h1>🚀 KH Auto Next</h1>
+
+  <div class="section">
+    <label for="khList">Danh sách (mỗi dòng: Đơn vị ⇥ Mã KH ⇥ Mã KH 23 ký tự):</label>
+    <textarea id="khList" placeholder="DC1001M1&#9;0AL&#9;KV8DC1001M10ALSM1000583&#10;DC1001M1&#9;0HE&#9;KV8DC1001M10HESM1001146&#10;..."></textarea>
+    <div class="hint">Paste trực tiếp từ Sheets: <b>cột 1 = Đơn vị</b>, <b>cột 2 = Mã KH</b>, <b>cột 3 = Mã KH 23 ký tự</b> (tùy chọn). Tab / khoảng trắng / dấu phẩy đều tách được. Dòng chỉ có 1 cột sẽ được hiểu là Mã KH.</div>
+  </div>
+
+  <div class="section">
+    <label for="programSelect">Chấm theo chương trình (sau khi Tìm kiếm tự bấm ảnh chương trình này):</label>
+    <select id="programSelect">
+      <!-- Options are built dynamically in popup.js: "CTTBGTTQ" + current MMYY + suffix -->
+      <option value="">— Không chấm theo chương trình —</option>
+    </select>
+    <div class="hint">Chọn 1 chương trình → mỗi lần Next/Tìm kiếm sẽ tự mở album đúng chương trình đó. Không tìm thấy thì bỏ qua.</div>
+  </div>
+
+  <div class="section">
+    <label for="soAnhSelect">Số ảnh cần đạt:</label>
+    <select id="soAnhSelect"></select>
+  </div>
+
+  <div class="section">
+    <label for="soMatSelect">Chọn số mặt:</label>
+    <select id="soMatSelect"></select>
+    <div class="hint">Phím <kbd>A</kbd> (Đạt) sẽ gán: <b>số mặt</b> · Đạt · <b>số ảnh cần đạt</b> theo 2 lựa chọn trên.</div>
+  </div>
+
+  <div class="section progress">
+    <div class="progress-current" id="currentKH">—</div>
+    <div class="progress-info" id="progressInfo">Chưa bắt đầu</div>
+  </div>
+
+  <div class="section row">
+    <button class="btn-secondary" id="btnPrev">← Prev</button>
+    <button class="btn-primary" id="btnNext">Next →</button>
+  </div>
+
+  <div class="section row">
+    <button class="btn-success" id="btnStart">Bắt đầu</button>
+    <button class="btn-danger" id="btnReset">Reset</button>
+  </div>
+
+  <div class="status" id="status"></div>
+
+  <div class="section">
+    <label>Kết quả đã gán (<span id="resultsCount">0</span>) — ĐV ⇥ Mã KH ⇥ 3 cột giá trị ⇥ Mã KH trùng:</label>
+    <textarea id="resultsView" readonly placeholder="Bấm phím chấm điểm để gán giá trị; bấm = để nhập Mã KH trùng cho KH hiện tại..."></textarea>
+    <div class="row" style="margin-top: 6px;">
+      <button class="btn-primary" id="btnCopyTsv">📋 Copy đủ 6 cột</button>
+      <button class="btn-secondary" id="btnCopyTypeCol">Copy trừ ĐV+Mã KH</button>
+    </div>
+    <div class="row" style="margin-top: 6px;">
+      <button class="btn-warning" id="btnClearResults">Xóa kết quả</button>
+    </div>
+  </div>
+
+  <div class="hint">
+    💡 Phím tắt: <kbd>→</kbd> Next &nbsp; <kbd>←</kbd> Prev &nbsp; <kbd>=</kbd> Nhập Mã KH trùng<br>
+    <kbd>1</kbd> Đạt trưng bày + Lưu &nbsp; <kbd>0</kbd> Không đạt + Lưu (chỉ khi ảnh có value)<br>
+    <kbd>2</kbd> Đồng ý &nbsp; <kbd>3</kbd> Hủy bỏ (khi không focus ô nhập)<br>
+    Trong popup ảnh: <kbd>2</kbd> copy <b>Mã KH 23 ký tự</b> &nbsp;·&nbsp; đang focus ô nhập: <kbd>3</kbd> paste clipboard<br>
+    Mỗi lần Next: chọn <b>Đơn vị</b> → điền <b>Mã KH</b> → bấm <b>Tìm kiếm</b>.<br>
+    <span style="display:inline-block;margin-top:6px;">Phím gán giá trị (cột3 / cột4 / cột5):</span>
+    <div id="keyLegend" class="key-legend"></div>
+    <kbd>=</kbd> mở ô nhập <b>Mã KH trùng</b> (cột 6) → Enter lưu, Esc đóng.<br>
+    Sau khi bấm phím chấm điểm, 3 cột giá trị tự copy → Ctrl/Cmd+V vào Sheets.<br>
+    Hoặc dùng nút "Copy đủ 6 cột" / "Copy trừ ĐV+Mã KH" để paste hàng loạt.
+  </div>
+
+  <script src="keymap.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
