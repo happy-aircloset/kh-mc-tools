@@ -290,12 +290,25 @@
     return (items || []).filter((x) => x && x.result === 1).length;
   }
 
-  // ====== Đủ số ảnh đạt -> Esc tự lưu kết quả phím "a" ======
-  // Option "Số ảnh cần đạt" lưu dưới dạng chuỗi hiển thị ("Có 2 ảnh đạt"),
-  // nên lấy số bằng regex thay vì so sánh chuỗi cứng.
+  // ====== Số ảnh đạt -> Esc tự lưu kết quả ======
+  // "Số ảnh cần đạt" is stored as its display string ("Có 2 ảnh đạt"), so the
+  // number is pulled with a regex instead of comparing hard-coded strings.
   function requiredPassCount(soAnh) {
     const m = String(soAnh || "").match(/\d+/);
     return m ? parseInt(m[0], 10) : 0;
+  }
+
+  // Key used when the scoring fell short of "số ảnh cần đạt" but exactly one
+  // image passed — TYPE_KEY_MAP["i"] is "0 / Không Đạt / Có 1 ảnh đạt", which is
+  // the same wording, so the count below is tied to this key and not arbitrary.
+  const PARTIAL_PASS_KEY = "i";
+  const PARTIAL_PASS_COUNT = 1;
+
+  // A key is a "fail" key purely by its column-4 label, so adding a new reason row
+  // to TYPE_KEY_MAP is enough to make it auto-score its image — no list to update here.
+  const FAIL_LABEL = "Không Đạt";
+  function isFailKey(k) {
+    return (TYPE_KEY_MAP[k] || [])[1] === FAIL_LABEL;
   }
 
   // Gọi khi đóng popup ảnh bằng Esc. Đợi hàng đợi chấm điểm xong trước khi đếm,
@@ -327,6 +340,15 @@
     }
     const got = countPassed(items);
     if (got < need) {
+      if (got === PARTIAL_PASS_COUNT) {
+        const label = (TYPE_KEY_MAP[PARTIAL_PASS_KEY] || [])[2] || "";
+        log(`tự gán phím ${PARTIAL_PASS_KEY}`, { need, got });
+        toast(
+          `Mới ${got}/${need} ảnh đạt → tự lưu kết quả phím ${PARTIAL_PASS_KEY.toUpperCase()} (${label})`,
+        );
+        await assignTypeKey(PARTIAL_PASS_KEY, target);
+        return;
+      }
       log("bỏ qua: chưa đủ ảnh đạt", {
         need,
         got,
@@ -1391,9 +1413,11 @@
     "keydown",
     (e) => {
       // Popup ảnh đang mở (chế độ slide):
-      //   Esc -> đóng popup + reset fancybox; đủ "số ảnh cần đạt" thì tự gán phím "a"
+      //   Esc -> đóng popup + reset fancybox; đủ "số ảnh cần đạt" thì tự gán phím "a",
+      //          thiếu nhưng có đúng 1 ảnh đạt thì tự gán phím "i"
       //   ← / ↓ -> ảnh trước ; → / ↑ -> ảnh sau
       //   1 -> chấm Đạt ; 0 -> chấm Chưa đạt (ảnh hiện tại)
+      //   phím gán Type -> lưu kết quả KH; phím "Không Đạt" chấm luôn ảnh hiện tại = 0
       //   phím khác -> bỏ qua
       if (document.getElementById("__kh_img_popup__")) {
         if (e.key === "Escape") {
@@ -1428,11 +1452,17 @@
             toast("KH này không có Mã KH 23 ký tự");
           }
         } else {
-          // Phím gán Type (a, b, c, ...) vẫn chạy được khi popup đang mở
+          // Phím gán Type (a, b, c, ...) vẫn chạy được khi popup đang mở.
+          // Phím "Không Đạt" gán xong thì tự chấm 0 cho ảnh đang xem (như bấm phím 0).
           const k = (e.key || "").toLowerCase();
           if (TYPE_KEY_MAP[k]) {
             e.preventDefault();
-            assignTypeKey(k);
+            // Capture the api now: assignTypeKey awaits storage + clipboard, and the
+            // popup can be closed (popupApi nulled) before it resolves.
+            const api = popupApi;
+            assignTypeKey(k).then(() => {
+              if (isFailKey(k) && api) api.scoreCurrent(false);
+            });
           }
         }
         return;
