@@ -13,15 +13,20 @@ var TYPE_KEY_MAP = {
   f: ["0", "Không Đạt", "Không chụp ảnh TB"],
   g: ["0", "Không Đạt", "Ảnh giả, chụp thông qua thiết bị khác"],
   h: ["0", "Không Đạt", "Ảnh trùng với điểm bán khác"],
-  i: ["0", "Không Đạt", "Có 1 ảnh đạt"],
   j: ["0", "Không Đạt", "Sai loại hàng TB"],
   q: ["0", "Không Đạt", "Không đầy 1 ngăn tủ TB"],
   w: ["0", "Không Đạt", "Sai vị trí TB, không xác định được loại tủ TB"],
   s: ["0", "Không Đạt", "TB không đủ 100% diện tích kệ"],
+  // On Esc, when fewer than "số ảnh cần đạt" images passed, content.js auto-saves
+  // the row labelled "Có <n> ảnh đạt" for the n that did ("i" covers n = 1). It
+  // matches on this exact label, so rewording these rows turns that off.
+  i: ["0", "Không Đạt", "Có 1 ảnh đạt"],
+  z: ["0", "Không Đạt", "Có 2 ảnh đạt"],
+  x: ["0", "Không Đạt", "Có 3 ảnh đạt"],
 };
 
 // Lựa chọn cho 2 dropdown chấm "Đạt" (popup.js dựng <option> từ đây).
-var SO_ANH_OPTIONS = ["Có 1 ảnh đạt", "Có 2 ảnh đạt"];
+var SO_ANH_OPTIONS = ["Có 1 ảnh đạt", "Có 2 ảnh đạt", "Có 4 ảnh đạt"];
 var SO_MAT_OPTIONS = ["1", "4", "6", "8", "10", "12", "16"];
 
 // Bộ 3 giá trị cho phím "a" (Đạt): cột3 = số mặt, cột4 = "Đạt", cột5 = số ảnh cần đạt.

@@ -47,7 +47,16 @@ AT1001M1	00B
 - Hoặc bấm nút **Next → / ← Prev** trong popup.
 
 ### 3b) Chấm theo chương trình (tự mở album sau khi Tìm kiếm)
-- Trong popup, ở mục **Chấm theo chương trình**, chọn 1 chương trình (vd `CTTBGTTQ0626STNX_KH`).
+- Trong popup, chọn **Tháng chấm ảnh** (`01`–`12`, mặc định = tháng hiện tại). Tháng này
+  quyết định phần `MM` của mã chương trình: tháng `07` → `CTTBGTTQ`**`07`**`26SSML_MCM`,
+  tháng `08` → `CTTBGTTQ`**`08`**`26SSML_MCM`. Phần `YY` luôn là **năm hiện tại**.
+- Đổi tháng → danh sách chương trình dựng lại theo tháng mới, **giữ nguyên hậu tố đang chọn**
+  (đang chọn `...SSML_MCM` tháng 07, đổi sang 08 → tự thành `CTTBGTTQ0826SSML_MCM`).
+- Chọn **Chương trình kéo dài** (`1 tháng` / `2 tháng`, mặc định `1 tháng`). Chọn `2 tháng` →
+  chương trình có chữ `MCC` (`STTTMCC_*`) ghép thêm tháng kế tiếp vào mã: tháng `09` →
+  `CTTBGTTQ`**`0910`**`26STTTMCC_CHS` (tháng `12` → `1201`). Chương trình khác giữ nguyên 1 tháng.
+  Đổi lựa chọn này cũng giữ nguyên hậu tố chương trình đang chọn.
+- Ở mục **Chấm theo chương trình**, chọn 1 chương trình (vd `CTTBGTTQ0626STNX_KH`).
 - Từ đó mỗi lần Next/Tìm kiếm, sau khi kết quả load xong, extension **tự bấm album đúng chương trình đó** (gọi `Images.showAlbumDetail`).
 - Khớp theo CODE trong `onclick` của link album trong `#imageContent`. Không tìm thấy chương trình → bỏ qua, không bấm.
 - Để chống bấm nhầm kết quả của KH trước, các album cũ được đánh dấu `data-kh-stale` ngay trước khi search; chỉ album mới (chưa stale) mới được bấm. Poll tối đa ~6s chờ AJAX.
@@ -105,8 +114,9 @@ Trong **popup gallery ảnh** (phím `1` = Đạt, `0` = Chưa đạt cho từng
 - Bấm **`Esc`** khi đã đủ số ảnh đạt → popup đóng **và tự gán kết quả của phím `A`**
   (bộ 3 `số mặt / Đạt / số ảnh cần đạt`) cho KH hiện tại + copy 3 cột vào clipboard,
   y như bấm `A` thủ công.
-- Chưa đủ **nhưng có đúng 1 ảnh đạt** (vd chọn "Có 2 ảnh đạt" mà chỉ chấm đạt 1 ảnh)
-  → `Esc` tự gán kết quả của phím **`I`** (`0 / Không Đạt / Có 1 ảnh đạt`) + copy 3 cột.
+- Chưa đủ **nhưng có ảnh đạt** → `Esc` tự gán phím lý do `0 / Không Đạt / Có <n> ảnh đạt`
+  đúng số ảnh đã đạt + copy 3 cột: 1 ảnh → **`I`**, 2 ảnh → **`Z`**, 3 ảnh → **`X`**
+  (vd chọn "Có 4 ảnh đạt" mà chỉ chấm đạt 3 ảnh → phím `X`).
 - Chưa đủ và **0 ảnh đạt** → `Esc` chỉ đóng popup như cũ, không gán gì.
 - Extension **đợi các lần chấm đang lưu xong rồi mới đếm**: ảnh chấm lỗi bị hoàn tác
   sẽ không được tính là đạt.
@@ -115,11 +125,13 @@ Ví dụ: chọn **Số ảnh cần đạt = "Có 2 ảnh đạt"**, chấm `1` 
 → dòng kết quả tự có `<số mặt>  Đạt  Có 2 ảnh đạt`.
 Cũng option đó nhưng chỉ chấm `1` cho 1 ảnh rồi bấm `Esc`
 → dòng kết quả tự có `0  Không Đạt  Có 1 ảnh đạt`.
+Chọn **"Có 4 ảnh đạt"**, chấm `1` cho 2 ảnh rồi bấm `Esc`
+→ dòng kết quả tự có `0  Không Đạt  Có 2 ảnh đạt`.
 
 ### 4e) Trong popup ảnh — phím "Không Đạt" tự chấm ảnh 0
 
 Khi **popup gallery ảnh đang mở**, bấm một phím có cột 4 = `Không Đạt`
-(`b c d e f g h i j q w s`) sẽ làm 2 việc liền:
+(`b c d e f g h i j q w s z x`) sẽ làm 2 việc liền:
 
 1. Lưu bộ 3 giá trị của phím đó cho KH hiện tại + copy 3 cột vào clipboard (như cũ).
 2. **Tự chấm ảnh đang xem = Không Đạt**, y như bấm phím `0` — chỉ ảnh đang xem,
@@ -164,6 +176,9 @@ Kết quả mỗi dòng gồm 6 cột: **Đơn vị | Mã KH | val1 | val2 | val
 
 ## Lịch sử
 
+- 1.3.24: thêm option **Chương trình kéo dài** (`1 tháng` / `2 tháng`). `2 tháng` → mã chương trình có chữ `MCC` ghép thêm tháng kế tiếp (tháng `09` → `CTTBGTTQ091026STTTMCC_CHS`); chương trình khác không đổi.
+- 1.3.23: thêm option **Có 4 ảnh đạt** cho *Số ảnh cần đạt* + 2 lý do Không Đạt: phím `Z` = `Có 2 ảnh đạt`, `X` = `Có 3 ảnh đạt`. Chấm thiếu số ảnh cần đạt → `Esc` tự lưu lý do `Có <n> ảnh đạt` theo số ảnh đã đạt (1 → `I`, 2 → `Z`, 3 → `X`); 0 ảnh đạt vẫn không tự lưu.
+- 1.3.22: thêm option **Tháng chấm ảnh** (`01`–`12`, mặc định tháng hiện tại) quyết định phần `MM` của mã **Chấm theo chương trình**. Đổi tháng thì giữ nguyên hậu tố chương trình đang chọn.
 - 1.3.21: trong popup ảnh, bấm phím "Không Đạt" (`b c d e f g h i j q w s`) tự chấm luôn ảnh đang xem = Không Đạt (như bấm phím `0`). Nhận diện theo cột 4 `Không Đạt` trong `keymap.js`.
 - 1.3.20: chấm thiếu số ảnh cần đạt nhưng có **đúng 1 ảnh đạt** → bấm `Esc` tự lưu kết quả phím `I` (`0 / Không Đạt / Có 1 ảnh đạt`) thay vì bỏ trống. 0 ảnh đạt vẫn không tự lưu.
 - 1.3.19: sửa lỗi bấm `Esc` khi đã đủ số ảnh đạt nhưng không lưu kết quả phím `A` — bộ đếm ảnh đạt tách khỏi `popupApi` (state của popup đang mở), không còn im lặng bỏ qua khi `popupApi` đã bị xóa. Kết quả cũng được chốt theo **KH sở hữu popup ảnh**, nên bấm `Esc` rồi bấm `→` ngay không còn ghi nhầm sang KH kế.

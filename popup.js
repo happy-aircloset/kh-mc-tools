@@ -10,6 +10,8 @@ const btnStart = $("btnStart");
 const btnNext = $("btnNext");
 const btnPrev = $("btnPrev");
 const btnReset = $("btnReset");
+const elMonth = $("monthSelect");
+const elDuration = $("durationSelect");
 const elProgram = $("programSelect");
 const elSoAnh = $("soAnhSelect");
 const elSoMat = $("soMatSelect");
@@ -29,6 +31,8 @@ async function getState() {
     "rawList",
     "results",
     "dups",
+    "month",
+    "duration",
     "program",
     "soAnh",
     "soMat",
@@ -41,6 +45,8 @@ async function getState() {
     rawList: data.rawList || "",
     results: data.results || {},
     dups: data.dups || {},
+    month: data.month || currentMM(),
+    duration: data.duration || "1",
     program: data.program || "",
     soAnh: data.soAnh || "",
     soMat: data.soMat || "",
@@ -58,9 +64,12 @@ function fillSelect(sel, options) {
   }
 }
 
-// Mã chương trình = "CTTBGTTQ" + MMYY (tháng+năm hiện tại) + hậu tố.
-// MMYY động theo thời gian: tháng 7/2026 => "0726", sang tháng 8 => "0826".
+// Mã chương trình = "CTTBGTTQ" + MM (chọn trong "Tháng chấm ảnh") + YY (năm hiện
+// tại) + hậu tố. Tháng 07 => "0726", tháng 08 => "0826".
 const PROGRAM_PREFIX = "CTTBGTTQ";
+const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) =>
+  String(i + 1).padStart(2, "0"),
+);
 const PROGRAM_SUFFIXES = [
   "_SDDCOLOS",
   "SSML_MCM",
@@ -73,23 +82,47 @@ const PROGRAM_SUFFIXES = [
   "STTTMCC_MM",
 ];
 
-// Format MMYY từ ngày hiện tại: MM (2 chữ số) + YY (2 chữ số cuối của năm).
-function currentMMYY(d = new Date()) {
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const yy = String(d.getFullYear()).slice(-2);
-  return mm + yy;
+// Tháng hiện tại (MM) — giá trị mặc định của "Tháng chấm ảnh".
+function currentMM(d = new Date()) {
+  return String(d.getMonth() + 1).padStart(2, "0");
 }
 
-// Build các <option> chương trình vào #programSelect (giữ nguyên option rỗng đầu tiên).
-function buildProgramOptions() {
-  const mmYY = currentMMYY();
+// YY của năm hiện tại. Only the month is user-selectable: a review always runs in
+// the same calendar year as the month being reviewed, so the year needs no control.
+function currentYY(d = new Date()) {
+  return String(d.getFullYear()).slice(-2);
+}
+
+function nextMM(mm) {
+  return String((Number(mm) % 12) + 1).padStart(2, "0");
+}
+
+// A 2-month "MCC" program carries both months in its code (month 09 ->
+// "CTTBGTTQ091026STTTMCC_CHS"); every other program carries one month.
+function programCode(mm, duration, suffix) {
+  const months =
+    duration === "2" && suffix.includes("MCC") ? mm + nextMM(mm) : mm;
+  return PROGRAM_PREFIX + months + currentYY() + suffix;
+}
+
+// Hậu tố của 1 mã chương trình ("CTTBGTTQ0826SSML_MCM" -> "SSML_MCM"), "" nếu không khớp.
+function programSuffix(code) {
+  return PROGRAM_SUFFIXES.find((sfx) => String(code || "").endsWith(sfx)) || "";
+}
+
+// Dựng lại các <option> chương trình theo tháng `mm`, giữ nguyên option rỗng đầu tiên.
+// `keepSuffix` = hậu tố muốn giữ lại sau khi dựng (đổi tháng thì chương trình đang
+// chọn nhảy sang mã cùng hậu tố của tháng mới, thay vì bị mất).
+function buildProgramOptions(mm, duration, keepSuffix) {
+  while (elProgram.options.length > 1) elProgram.remove(1);
   for (const suffix of PROGRAM_SUFFIXES) {
-    const val = PROGRAM_PREFIX + mmYY + suffix;
+    const val = programCode(mm, duration, suffix);
     const opt = document.createElement("option");
     opt.value = val;
     opt.textContent = val;
     elProgram.appendChild(opt);
   }
+  elProgram.value = keepSuffix ? programCode(mm, duration, keepSuffix) : "";
 }
 
 // Khóa duy nhất theo cặp (Đơn vị + Mã KH) — phải khớp với content.js
@@ -299,6 +332,37 @@ btnStart.addEventListener("click", async () => {
   setStatus(`Đã nạp ${khs.length} dòng. Bấm Next để bắt đầu.`, "success");
 });
 
+elMonth.addEventListener("change", async () => {
+  // Đổi tháng = đổi mã chương trình, giữ nguyên hậu tố đang chọn.
+  buildProgramOptions(
+    elMonth.value,
+    elDuration.value,
+    programSuffix(elProgram.value),
+  );
+  await setState({ month: elMonth.value, program: elProgram.value });
+  setStatus(
+    elProgram.value
+      ? `Tháng ${elMonth.value} → chương trình: ${elProgram.value}`
+      : `Tháng chấm ảnh: ${elMonth.value}`,
+    "success",
+  );
+});
+
+elDuration.addEventListener("change", async () => {
+  buildProgramOptions(
+    elMonth.value,
+    elDuration.value,
+    programSuffix(elProgram.value),
+  );
+  await setState({ duration: elDuration.value, program: elProgram.value });
+  setStatus(
+    elProgram.value
+      ? `Kéo dài ${elDuration.value} tháng → chương trình: ${elProgram.value}`
+      : `Chương trình kéo dài: ${elDuration.value} tháng`,
+    "success",
+  );
+});
+
 elProgram.addEventListener("change", async () => {
   await setState({ program: elProgram.value });
   setStatus(
@@ -335,10 +399,16 @@ btnReset.addEventListener("click", async () => {
   if (!confirm("Reset toàn bộ danh sách, tiến độ và kết quả Type?")) return;
   await chrome.storage.local.clear();
   elKhList.value = "";
-  elProgram.value = "";
+  elMonth.value = currentMM();
+  elDuration.value = "1";
+  buildProgramOptions(elMonth.value, elDuration.value, "");
   elSoAnh.value = (window.SO_ANH_OPTIONS || [])[0] || "";
   elSoMat.value = (window.SO_MAT_OPTIONS || [])[0] || "";
-  await setState({ soAnh: elSoAnh.value, soMat: elSoMat.value });
+  await setState({
+    month: elMonth.value,
+    soAnh: elSoAnh.value,
+    soMat: elSoMat.value,
+  });
   render({ khArr: [], unitArr: [], idx: -1 });
   renderResults({ khArr: [], results: {} });
   renderKeyLegend();
@@ -441,14 +511,27 @@ function renderKeyLegend() {
 (async function init() {
   const state = await getState();
   elKhList.value = state.rawList;
-  buildProgramOptions();
-  elProgram.value = state.program;
+  fillSelect(elMonth, MONTH_OPTIONS);
+  elMonth.value = state.month;
+  elDuration.value = state.duration;
+  // Mã đã lưu có thể thuộc tháng/năm khác (state cũ, hoặc sang năm mới) -> dựng lại
+  // theo tháng đang chọn và chỉ giữ hậu tố, để giá trị lưu luôn khớp option hiện có.
+  buildProgramOptions(
+    elMonth.value,
+    elDuration.value,
+    programSuffix(state.program),
+  );
   fillSelect(elSoAnh, window.SO_ANH_OPTIONS || []);
   fillSelect(elSoMat, window.SO_MAT_OPTIONS || []);
   elSoAnh.value = state.soAnh || (window.SO_ANH_OPTIONS || [])[0] || "";
   elSoMat.value = state.soMat || (window.SO_MAT_OPTIONS || [])[0] || "";
   // Lưu lại giá trị mặc định để content.js luôn có dữ liệu cho phím "a".
-  await setState({ soAnh: elSoAnh.value, soMat: elSoMat.value });
+  await setState({
+    month: elMonth.value,
+    program: elProgram.value,
+    soAnh: elSoAnh.value,
+    soMat: elSoMat.value,
+  });
   render(state);
   renderResults(state);
   renderKeyLegend();

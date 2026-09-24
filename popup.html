@@ -163,9 +163,24 @@
   </div>
 
   <div class="section">
+    <label for="monthSelect">Tháng chấm ảnh:</label>
+    <select id="monthSelect"></select>
+    <div class="hint">Tháng quyết định phần <b>MM</b> trong mã chương trình bên dưới (vd tháng <b>07</b> → <code>CTTBGTTQ<b>07</b>26SSML_MCM</code>). Mặc định = tháng hiện tại.</div>
+  </div>
+
+  <div class="section">
+    <label for="durationSelect">Chương trình kéo dài:</label>
+    <select id="durationSelect">
+      <option value="1">1 tháng</option>
+      <option value="2">2 tháng</option>
+    </select>
+    <div class="hint">Chọn <b>2 tháng</b> → chương trình có chữ <b>MCC</b> ghép thêm tháng kế tiếp vào mã (vd tháng <b>09</b> → <code>CTTBGTTQ<b>0910</b>26STTTMCC_CHS</code>). Chương trình khác giữ nguyên.</div>
+  </div>
+
+  <div class="section">
     <label for="programSelect">Chấm theo chương trình (sau khi Tìm kiếm tự bấm ảnh chương trình này):</label>
     <select id="programSelect">
-      <!-- Options are built dynamically in popup.js: "CTTBGTTQ" + current MMYY + suffix -->
+      <!-- Options are built dynamically in popup.js (buildProgramOptions) -->
       <option value="">— Không chấm theo chương trình —</option>
     </select>
     <div class="hint">Chọn 1 chương trình → mỗi lần Next/Tìm kiếm sẽ tự mở album đúng chương trình đó. Không tìm thấy thì bỏ qua.</div>
