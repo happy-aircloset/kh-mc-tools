@@ -162,6 +162,11 @@ trong dải thumbnail (ảnh có ✓ hoặc ✕, gồm cả ảnh chấm từ tr
   (vd `Shift+B`) vẫn chạy như phím đó, không nhảy ảnh.
 - Đang gõ trong ô **Mã KH trùng** → `Shift` không nhảy.
 
+### 4d4) Popup ảnh — phím `F1` về ảnh đầu tiên
+
+Trong popup gallery ảnh, bấm **`F1`** → nhảy về **ảnh đầu tiên** trong dải thumbnail (chỉ chuyển
+ảnh, không chấm, không lưu gì). Trên Mac, nếu `F1` đang là phím chỉnh độ sáng thì bấm `fn + F1`.
+
 ### 4e) Trong popup ảnh — phím "Không Đạt" tự chấm ảnh 0
 
 Khi **popup gallery ảnh đang mở**, bấm một phím có cột 4 = `Không Đạt`
@@ -252,6 +257,7 @@ Kết quả mỗi dòng gồm 6 cột: **Đơn vị | Mã KH | val1 | val2 | val
 
 ## Lịch sử
 
+- 1.3.33: phím **`F1`** trong popup ảnh nhảy về ảnh đầu tiên.
 - 1.3.32: phím **`Shift`** (bấm riêng) trong popup ảnh nhảy tới ảnh đã chấm kế tiếp, hết thì quay lại đầu.
 - 1.3.31: phím **`Tab`** trong popup ảnh chỉ đóng popup (như nút ✕, không lưu kết quả, không Next). Nút đổi nhãn thành **✕ Đóng (Tab/Esc)**.
 - 1.3.30: thêm ô **Đơn vị gốc** cho Gộp đơn vị — chỉ dòng có Đơn vị thuộc Đơn vị gốc mới được lọc gộp; dòng thuộc đơn vị khác lọc như cũ.
