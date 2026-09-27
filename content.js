@@ -1756,7 +1756,7 @@
       //   1 -> chấm Đạt ; 0 -> chấm Chưa đạt (ảnh hiện tại)
       //   phím gán Type -> lưu kết quả KH; phím "Không Đạt" chấm luôn ảnh hiện tại = 0
       //   = -> open the Mã KH trùng box over the popup
-      //   Shift alone -> next scored image (keyup listener below) ; F1 -> first image
+      //   Shift alone -> next scored image (keyup listener below) ; ` -> first image
       //   phím khác -> bỏ qua
       // An auto next is waiting on the Mã KH trùng box and its toast asks for Enter /
       // Esc: act on the box even with focus outside it, rather than letting the popup
@@ -1810,8 +1810,9 @@
           closeImagePopup();
           closeNativeFancybox();
           autoAssignPassOnEsc().then((saved) => autoNextAfterSave(seq, saved));
-        } else if (e.key === "F1") {
-          e.preventDefault(); // else Chrome opens its help page
+        } else if (e.code === "Backquote") {
+          // By key position: a Vietnamese IME or another layout can change e.key.
+          e.preventDefault();
           if (popupApi) popupApi.first();
         } else if (e.key === "Tab") {
           // Same as the ✕ button: close only, unlike Esc it saves no result.
