@@ -151,6 +151,17 @@ Bấm **`Tab`** khi popup gallery ảnh đang mở → đóng popup, **không l�
 **✕ Đóng (Tab/Esc)**: không tự lưu kết quả, không Next (khác `Esc` ở mục 4d). Đang gõ trong ô
 **Mã KH trùng** thì `Tab` vẫn là phím Tab bình thường của ô.
 
+### 4d3) Popup ảnh — phím `Shift` nhảy tới ảnh đã chấm
+
+Trong popup gallery ảnh, bấm **`Shift`** (bấm riêng, rồi thả) → nhảy tới **ảnh đã chấm kế tiếp**
+trong dải thumbnail (ảnh có ✓ hoặc ✕, gồm cả ảnh chấm từ trước trên server):
+
+- Mỗi lần bấm sang ảnh đã chấm tiếp theo; hết thì quay lại ảnh đã chấm đầu tiên.
+- Chưa có ảnh nào đã chấm → toast `Chưa có ảnh nào đã chấm`, đứng yên.
+- Chỉ nhảy khi **thả** Shift mà không bấm phím nào khác trong lúc giữ: `Shift` + phím khác
+  (vd `Shift+B`) vẫn chạy như phím đó, không nhảy ảnh.
+- Đang gõ trong ô **Mã KH trùng** → `Shift` không nhảy.
+
 ### 4e) Trong popup ảnh — phím "Không Đạt" tự chấm ảnh 0
 
 Khi **popup gallery ảnh đang mở**, bấm một phím có cột 4 = `Không Đạt`
@@ -241,6 +252,7 @@ Kết quả mỗi dòng gồm 6 cột: **Đơn vị | Mã KH | val1 | val2 | val
 
 ## Lịch sử
 
+- 1.3.32: phím **`Shift`** (bấm riêng) trong popup ảnh nhảy tới ảnh đã chấm kế tiếp, hết thì quay lại đầu.
 - 1.3.31: phím **`Tab`** trong popup ảnh chỉ đóng popup (như nút ✕, không lưu kết quả, không Next). Nút đổi nhãn thành **✕ Đóng (Tab/Esc)**.
 - 1.3.30: thêm ô **Đơn vị gốc** cho Gộp đơn vị — chỉ dòng có Đơn vị thuộc Đơn vị gốc mới được lọc gộp; dòng thuộc đơn vị khác lọc như cũ.
 - 1.3.29: popup ảnh chấm xong tự sang **ảnh của ngày kế tiếp** (ảnh đầu tiên khác ngày phía sau, kể cả ảnh đã chấm) thay vì ảnh chưa chấm kế tiếp. Chỉ có 1 ngày → sang ảnh chưa chấm kế tiếp như cũ.

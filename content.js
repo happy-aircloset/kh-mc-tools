@@ -910,6 +910,20 @@
       goToNextUnscored();
     }
 
+    // Shift: cycle through the scored images (same test render() uses for the ✓/✕
+    // badge), wrapping to the start. Returns false when no image is scored yet.
+    function goToNextScored() {
+      for (let step = 1; step <= all.length; step++) {
+        const i = (cur + step) % all.length;
+        if (all[i].isInSpected != null || all[i].result != null) {
+          cur = i;
+          render();
+          return true;
+        }
+      }
+      return false;
+    }
+
     // Chấm 1 ảnh: optimistic -> gọi API; nếu KHÔNG phải 200 thì hoàn tác lại trạng thái cũ.
     // Token single-use: mỗi lần 200 server trả token mới -> rotate cho lần sau.
     // Các lần chấm chạy TUẦN TỰ (queue) để không 2 request dùng chung 1 token.
@@ -965,6 +979,7 @@
       prev: () => go(-1),
       next: () => go(1),
       scoreCurrent: (pass) => score(all[cur], pass),
+      nextScored: goToNextScored,
     };
 
     overlay.appendChild(header);
@@ -1721,9 +1736,16 @@
   });
 
   // ====== Listen phím tắt ======
+  // Shift jumps to scored images on keyup, and only when pressed alone: acting on
+  // keydown would move the image before Shift+<fail key> scores the current one.
+  let shiftAlone = false;
+
   document.addEventListener(
     "keydown",
     (e) => {
+      if (e.key !== "Shift") shiftAlone = false;
+      else if (!e.repeat) shiftAlone = true;
+
       // Popup ảnh đang mở (chế độ slide):
       //   Esc -> close popup + reset fancybox; auto-assign "a" when "số ảnh cần đạt"
       //          is met, else the "Có <n> ảnh đạt" fail key (see partialPassKey)
@@ -1733,6 +1755,7 @@
       //   1 -> chấm Đạt ; 0 -> chấm Chưa đạt (ảnh hiện tại)
       //   phím gán Type -> lưu kết quả KH; phím "Không Đạt" chấm luôn ảnh hiện tại = 0
       //   = -> open the Mã KH trùng box over the popup
+      //   Shift alone -> next scored image (keyup listener below)
       //   phím khác -> bỏ qua
       // An auto next is waiting on the Mã KH trùng box and its toast asks for Enter /
       // Esc: act on the box even with focus outside it, rather than letting the popup
@@ -1905,6 +1928,17 @@
         const seq = navSeq;
         assignTypeKey(k).then((saved) => autoNextAfterSave(seq, saved));
       }
+    },
+    true,
+  );
+
+  document.addEventListener(
+    "keyup",
+    (e) => {
+      if (e.key !== "Shift" || !shiftAlone) return;
+      shiftAlone = false;
+      if (!document.getElementById("__kh_img_popup__") || e.target === dupInput) return;
+      if (popupApi && !popupApi.nextScored()) toast("Chưa có ảnh nào đã chấm");
     },
     true,
   );
