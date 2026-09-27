@@ -34,9 +34,10 @@
   injectMainWorldScript();
 
   // ====== Gửi yêu cầu chọn Đơn vị sang main world, đợi phản hồi ======
-  function setDonVi(unitText) {
+  // `units` = the row's unit first, then the "Gộp đơn vị" units (see inject.js setShop).
+  function setDonVi(units) {
     return new Promise((resolve) => {
-      if (!unitText) {
+      if (units.length === 0) {
         resolve({ ok: true, skipped: true });
         return;
       }
@@ -56,8 +57,10 @@
         resolve({ ok: false, error: "Hết thời gian chờ chọn Đơn vị" });
       }, 1500);
 
+      // `text` too: an inject.js loaded before an extension reload stays in the page
+      // (its install guard) and only reads `text`.
       window.postMessage(
-        { source: "KH_AUTO_NEXT", type: "SET_SHOP", text: unitText, reqId },
+        { source: "KH_AUTO_NEXT", type: "SET_SHOP", text: units[0], texts: units, reqId },
         "*",
       );
     });
@@ -202,10 +205,43 @@
     return links.find((a) => (a.textContent || "").trim() !== "") || links[0];
   }
 
+  // Album id = first argument of showAlbumDetail(id,'CODE'); the thumbnail and the
+  // title link of one album share it.
+  function albumIdOf(a) {
+    const oc = a.getAttribute("onclick") || "";
+    const m = oc.match(/showAlbumDetail\s*\(\s*['"]?([^,'"]*)/);
+    return m ? m[1].trim() : "";
+  }
+
+  // One link per album matching CODE (with "Gộp đơn vị" each unit has its own album),
+  // preferring the titled link like findAlbumLink.
+  function findAlbumLinksPerAlbum(programCode) {
+    const want = normCode(programCode);
+    const byAlbum = new Map();
+    for (const a of albumLinks(false)) {
+      if (normCode(albumCodeOf(a)) !== want) continue;
+      const id = albumIdOf(a);
+      const kept = byAlbum.get(id);
+      if (!kept || (!(kept.textContent || "").trim() && (a.textContent || "").trim())) {
+        byAlbum.set(id, a);
+      }
+    }
+    return [...byAlbum.values()];
+  }
+
   // Poll chờ kết quả mới rồi bấm album khớp CODE. Không thấy sau timeout -> bỏ qua.
-  function autoClickProgram(programCode, attempt) {
+  // `mergeAlbums` ("Gộp đơn vị" is set): several matching albums are all opened and
+  // their images shown in one popup. `seq` = navSeq of the search that started it.
+  function autoClickProgram(programCode, mergeAlbums, seq, attempt) {
     if (!programCode) return;
     attempt = attempt || 0;
+    if (mergeAlbums) {
+      const links = findAlbumLinksPerAlbum(programCode);
+      if (links.length > 1) {
+        openMergedAlbums(links, programCode, seq);
+        return;
+      }
+    }
     const a = findAlbumLink(programCode);
     if (a) {
       // Ảnh chi tiết cũ (album trước) -> stale, để autoClickFirstImage chỉ bấm ảnh MỚI
@@ -218,7 +254,10 @@
     }
     if (attempt < 24) {
       // poll ~6s (24 * 250ms) chờ AJAX trả kết quả
-      setTimeout(() => autoClickProgram(programCode, attempt + 1), 250);
+      setTimeout(
+        () => autoClickProgram(programCode, mergeAlbums, seq, attempt + 1),
+        250,
+      );
     } else {
       toast("Không thấy chương trình: " + programCode);
     }
@@ -253,6 +292,85 @@
     }
   }
 
+  // ====== Gộp đơn vị: open every matching album, show all their images in one popup ======
+  // While set, a POPUP_IMAGES response resolves this instead of building a popup.
+  let albumImagesWaiter = null;
+
+  function cancelAlbumImagesWait() {
+    if (albumImagesWaiter) albumImagesWaiter.resolve(null);
+  }
+
+  function waitForPopupImages(timeoutMs) {
+    return new Promise((resolve) => {
+      const waiter = {
+        resolve(data) {
+          clearTimeout(timer);
+          if (albumImagesWaiter === waiter) albumImagesWaiter = null;
+          resolve(data);
+        },
+      };
+      const timer = setTimeout(() => waiter.resolve(null), timeoutMs);
+      albumImagesWaiter = waiter;
+    });
+  }
+
+  function delay(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  async function waitForFreshDetailImage() {
+    for (let attempt = 0; attempt <= 24; attempt++) {
+      const fresh = detailImageLinks(false);
+      if (fresh.length) return fresh[0];
+      await delay(250);
+    }
+    return null;
+  }
+
+  // The popup keeps the last response's token: updateResult tokens rotate, so the most
+  // recently issued one is the one the server expects next.
+  function mergeAlbumImages(responses) {
+    const seen = new Set();
+    const lstImage = [];
+    for (const res of responses) {
+      for (const it of (res && res.lstImage) || []) {
+        if (it && it.id != null) {
+          if (seen.has(it.id)) continue;
+          seen.add(it.id);
+        }
+        lstImage.push(it);
+      }
+    }
+    return { ...responses[responses.length - 1], lstImage };
+  }
+
+  // Albums are opened one at a time: the page shows one album detail at once and its
+  // fancybox guard must be reset before the next image click calls the API again.
+  async function openMergedAlbums(links, programCode, seq) {
+    toast(`📂 Gộp ${links.length} album: ${programCode}`);
+    const responses = [];
+    for (const link of links) {
+      markDetailImagesStale();
+      link.click(); // trigger Images.showAlbumDetail(...)
+      const img = await waitForFreshDetailImage();
+      if (seq !== navSeq) return;
+      if (!img) continue;
+      const response = waitForPopupImages(8000);
+      img.click(); // trigger Images.showDialogFancy(...) -> API popup
+      const data = await response;
+      if (seq !== navSeq) return;
+      if (data) responses.push(data);
+      await delay(500); // same wait as buildImagePopup before closing the fancybox
+      closeNativeFancybox();
+    }
+    if (seq !== navSeq) return;
+    if (responses.length === 0) {
+      toast("Không lấy được ảnh của các album gộp");
+      return;
+    }
+    buildImagePopup(mergeAlbumImages(responses));
+  }
+
   // ====== Popup gallery: dựng từ response /images/get-images-for-popup ======
   // urlImage trong response là path tương đối (vd "/mc/ms/image/.../full_...jpg").
   // Base ảnh = phần đứng trước "/mc/ms/image" trong data-original của thumbnail trên trang
@@ -285,6 +403,21 @@
   // KH sở hữu popupItems ({code, unit}), chốt lúc dựng popup. Esc lưu kết quả cho
   // ĐÚNG KH của mấy tấm ảnh vừa chấm, không đọc lại `idx` (idx có thể đã nhảy).
   let popupKh = null;
+  // Auto next runs after awaits (storage, the score queue), so it cannot trust that
+  // the KH it saved is still current. navSeq is bumped synchronously when any KH
+  // navigation starts; an auto next captured before a manual → (or before another
+  // auto next) sees it changed and gives up instead of skipping a KH.
+  let navSeq = 0;
+  // Bumped whenever a result is assigned, so a pending auto pass notices a result the
+  // user assigned by hand while it waited and does not overwrite it with key "a".
+  let saveSeq = 0;
+  // When the last auto next navigated (performance.now(): monotonic). A second press
+  // of the key that triggered it (or a habitual → from before Auto next) lands on the
+  // next KH within milliseconds, long before its images are even shown — or, while
+  // fillAndSearch holds focus on the Mã KH input, is typed into the search code — so
+  // keys are ignored for a short while.
+  let autoNavAt = -Infinity;
+  const AUTO_NAV_GUARD_MS = 700;
 
   function countPassed(items) {
     return (items || []).filter((x) => x && x.result === 1).length;
@@ -317,6 +450,7 @@
 
   // Gọi khi đóng popup ảnh bằng Esc. Đợi hàng đợi chấm điểm xong trước khi đếm,
   // vì lần chấm thất bại sẽ hoàn tác `result` -> đếm sớm sẽ ra số sai.
+  // Returns the KH it saved a result for ({code, unit}), or undefined when it saved none.
   async function autoAssignPassOnEsc() {
     // Chốt ảnh + KH NGAY (đồng bộ, trước await đầu tiên): scoreQueue chờ tới 8s,
     // trong lúc đó người dùng bấm → sang KH khác thì popupItems/popupKh/idx đã đổi hết.
@@ -351,8 +485,7 @@
         toast(
           `Mới ${got}/${need} ảnh đạt → tự lưu kết quả phím ${partialKey.toUpperCase()} (${label})`,
         );
-        await assignTypeKey(partialKey, target);
-        return;
+        return assignTypeKey(partialKey, target);
       }
       log("bỏ qua: chưa đủ ảnh đạt", {
         need,
@@ -364,7 +497,87 @@
     }
     log("tự gán phím A", { need, got });
     toast(`Đủ ${got}/${need} ảnh đạt → tự lưu kết quả phím A`);
-    await assignTypeKey("a", target);
+    return assignTypeKey("a", target);
+  }
+
+  // Scores queued while waiting are waited for too: moving to the next KH first would
+  // let an old image's score spend the token of the next KH's popup.
+  async function drainScoreQueue() {
+    let q;
+    do {
+      q = scoreQueue;
+      await q;
+    } while (q !== scoreQueue);
+  }
+
+  // Auto next: once a result is saved for `saved` ({code, unit}), close the image
+  // popup and go to the next KH. `seq` is navSeq when the save was triggered.
+  async function autoNextAfterSave(seq, saved) {
+    if (!saved) return;
+    const { autoNext } = await chrome.storage.local.get(["autoNext"]);
+    if (!autoNext) return;
+    // The popup can still be open here, so a score queued during the storage read is
+    // drained again before leaving.
+    let data;
+    for (;;) {
+      await drainScoreQueue();
+      const q = scoreQueue;
+      data = await chrome.storage.local.get(["khArr", "unitArr", "idx"]);
+      if (q === scoreQueue) break;
+    }
+    // No await from here to gotoIndex's navSeq bump, so two auto nexts that both
+    // reach this point cannot both pass the check.
+    if (seq !== navSeq) return;
+    const idx = typeof data.idx === "number" ? data.idx : -1;
+    const arr = data.khArr || [];
+    const units = data.unitArr || [];
+    if (rowKey(units[idx], arr[idx]) !== rowKey(saved.unit, saved.code)) return;
+    // Leaving now would hide the Mã KH trùng box and drop what is being typed, so
+    // wait until it is closed (see the dupInput keydown handler).
+    // The Enter / Esc the toast asks for is handled even with focus outside the box
+    // (top of the keydown handler); the box is not re-focused, as that would pull a
+    // stray scoring key into the code being typed.
+    if (dupBox && dupBox.style.display !== "none") {
+      pendingAutoNext = () => autoNextAfterSave(seq, saved);
+      toast("Auto next: Enter / Esc ô Mã KH trùng xong sẽ sang KH tiếp");
+      return;
+    }
+    closeImagePopup(); // gotoIndex does not close it at the end of the list
+    closeNativeFancybox();
+    if (idx + 1 < arr.length) autoNavAt = performance.now();
+    gotoIndex(data, idx + 1);
+  }
+
+  // Auto next: the pass that reaches "số ảnh cần đạt" saves key "a" and moves on,
+  // so Esc is not needed. Returns false when it did not act and may be tried again:
+  // the option is off, or a failed save reverted an image and the count fell short.
+  // "Số ảnh cần đạt" is re-read rather than taken from the popup, since it may have
+  // changed since the popup opened, and key "a" is saved from that same read: reading
+  // it again after the drain could save a label the count was not checked against.
+  async function autoPassWhenEnough(items) {
+    const seq = navSeq;
+    const saves = saveSeq;
+    const target = popupKh;
+    const { autoNext, soAnh, soMat } = await chrome.storage.local.get([
+      "autoNext",
+      "soAnh",
+      "soMat",
+    ]);
+    if (!autoNext) return false;
+    await drainScoreQueue();
+    if (seq !== navSeq || popupItems !== items || saves !== saveSeq) return true;
+    const need = requiredPassCount(soAnh);
+    const got = countPassed(items);
+    if (!need || got < need) return false;
+    closeImagePopup();
+    closeNativeFancybox();
+    console.log("[KH Auto next] đủ ảnh đạt -> tự gán phím A", { need, got, target });
+    toast(`Đủ ${got}/${need} ảnh đạt → tự lưu kết quả phím A + Next`);
+    // No soMat -> no preset, so tripleForKey shows its usual "chọn số mặt" toast.
+    const preset = soMat ? passTriple(soMat, soAnh) : null;
+    const saved = await assignTypeKey("a", target, preset);
+    await autoNextAfterSave(seq, saved);
+    return true;
   }
 
   function closeImagePopup() {
@@ -424,6 +637,7 @@
     const ver = Date.now();
     let cur = 0; // slide hiện tại
     let need = 0; // số ảnh cần đạt (option trong popup extension), 0 = chưa chọn
+    let autoPassArmed = false; // one auto pass per popup, re-armed if it did not act
 
     const overlay = document.createElement("div");
     overlay.id = "__kh_img_popup__";
@@ -451,7 +665,9 @@
 
     const title = document.createElement("div");
     title.style.cssText = "font-size:14px;font-weight:600;line-height:1.3;";
-    title.textContent = `${first.shopCode || ""} · ${first.customerName || ""} (${first.customerCode || ""})`;
+    // Merged albums ("Gộp đơn vị") can hold several units' images.
+    const shops = [...new Set(all.map((x) => x.shopCode).filter(Boolean))].join(" + ");
+    title.textContent = `${shops} · ${first.customerName || ""} (${first.customerCode || ""})`;
 
     // Dòng Mã KH 23 ký tự — điền async từ storage (khFullArr[idx]); phím "2" để copy.
     const codeEl = document.createElement("div");
@@ -484,7 +700,7 @@
       "flex:0 0 auto;font-size:13px;font-weight:600;color:#cbd5e1;";
 
     const closeBtn = document.createElement("button");
-    closeBtn.textContent = "✕ Đóng (Esc)";
+    closeBtn.textContent = "✕ Đóng (Tab/Esc)";
     closeBtn.style.cssText = `
       flex: 0 0 auto; cursor: pointer; border: none; border-radius: 6px;
       background: #ef4444; color: #fff; font-size: 13px; font-weight: 600;
@@ -658,6 +874,42 @@
       render();
     }
 
+    // Jump to the next image with no score yet (same test render() uses for the ✓/✕
+    // badge), wrapping to the start so a skipped image is not missed; stays put once
+    // every image is scored. It runs before the save resolves: a failed save makes
+    // its image unscored again, so a later jump lands on it.
+    function goToNextUnscored() {
+      for (let step = 1; step < all.length; step++) {
+        const i = (cur + step) % all.length;
+        if (all[i].isInSpected == null && all[i].result == null) {
+          cur = i;
+          return;
+        }
+      }
+    }
+
+    // Day part of the date shown in the footer ("17/09/2026-10:37" -> "17/09/2026").
+    function dayOf(it) {
+      const s = it.createDateStr || it.dmyDate || "";
+      const m = s.match(/\d{1,2}\/\d{1,2}\/\d{4}/);
+      return m ? m[0] : s;
+    }
+
+    // After scoring, jump to the next image taken on another day, even an already scored
+    // one (wrapping to the start). With a single day there is no other day to jump to,
+    // so fall back to the next unscored image.
+    function goToNextDay() {
+      const day = dayOf(all[cur]);
+      for (let step = 1; step < all.length; step++) {
+        const i = (cur + step) % all.length;
+        if (dayOf(all[i]) !== day) {
+          cur = i;
+          return;
+        }
+      }
+      goToNextUnscored();
+    }
+
     // Chấm 1 ảnh: optimistic -> gọi API; nếu KHÔNG phải 200 thì hoàn tác lại trạng thái cũ.
     // Token single-use: mỗi lần 200 server trả token mới -> rotate cho lần sau.
     // Các lần chấm chạy TUẦN TỰ (queue) để không 2 request dùng chung 1 token.
@@ -672,8 +924,16 @@
       // Optimistic ngay (UI mượt)
       it.isInSpected = 1;
       it.result = resultImg;
+      goToNextDay();
       render();
       toast((pass ? "✓ Đạt" : "✗ Chưa đạt") + " — đang lưu...");
+
+      if (pass && need && !autoPassArmed && countPassed(all) >= need) {
+        autoPassArmed = true;
+        autoPassWhenEnough(all).then((acted) => {
+          if (!acted) autoPassArmed = false;
+        });
+      }
 
       // Nối vào hàng đợi: chạy sau khi lần chấm trước xong + đã rotate token
       scoreQueue = scoreQueue.then(async () => {
@@ -748,6 +1008,10 @@
   window.addEventListener("message", (ev) => {
     const d = ev.data;
     if (!d || d.source !== "KH_AUTO_NEXT_PAGE" || d.type !== "POPUP_IMAGES") return;
+    if (albumImagesWaiter) {
+      albumImagesWaiter.resolve(d.data);
+      return;
+    }
     buildImagePopup(d.data);
   });
 
@@ -781,15 +1045,36 @@
   }
 
   // ====== Thực hiện: chọn Đơn vị -> điền Mã KH -> click search ======
+  // "Đơn vị gốc" / "Gộp đơn vị" text from the popup -> unit codes, split like the KH list.
+  function parseUnitList(raw) {
+    return String(raw || "").split(/[\s,;]+/).filter(Boolean);
+  }
+
+  // Only a row whose unit is one of the "Đơn vị gốc" gets the "Gộp đơn vị" units.
+  function mergeUnitsFor(unitText, cfg) {
+    const unit = normCode(unitText);
+    if (!unit) return [];
+    const isBase = parseUnitList(cfg.mergeBaseUnits).some((u) => normCode(u) === unit);
+    return isBase ? parseUnitList(cfg.mergeUnits) : [];
+  }
+
   async function fillAndSearch(khCode, unitText) {
+    const seq = ++navSeq; // before any await: see navSeq
+    pendingAutoNext = null; // it belongs to the KH being left
+    cancelAlbumImagesWait(); // its response would be the next KH's popup
     // Dọn popup + reset fancybox của KH trước trước khi sang KH mới
     closeImagePopup();
     popupItems = []; // ảnh của KH cũ không được tính cho KH mới
     popupKh = null;
     closeNativeFancybox();
 
+    // Chương trình đang chấm (nếu có) -> sau khi search sẽ tự bấm album khớp
+    const cfg = await chrome.storage.local.get(["program", "mergeBaseUnits", "mergeUnits"]);
+    const program = cfg.program || "";
+    const mergeUnits = mergeUnitsFor(unitText, cfg);
+
     // 1) Chọn Đơn vị (Kendo MultiSelect) trước, đợi main world xử lý xong
-    const shopRes = await setDonVi(unitText);
+    const shopRes = await setDonVi(unitText ? [unitText, ...mergeUnits] : []);
 
     // 2) Điền Mã KH
     const input = findKhInput();
@@ -797,10 +1082,6 @@
       return { ok: false, error: "Không tìm thấy ô KH trên trang", shop: shopRes };
     }
     setInputValue(input, khCode || "");
-
-    // Chương trình đang chấm (nếu có) -> sau khi search sẽ tự bấm album khớp
-    const cfg = await chrome.storage.local.get(["program"]);
-    const program = cfg.program || "";
 
     // 3) Đợi 1 chút để framework cập nhật rồi mới click search
     setTimeout(() => {
@@ -820,7 +1101,7 @@
       } catch (_) {}
 
       // 4) Chờ kết quả mới rồi tự bấm album của chương trình đã chọn
-      if (program) autoClickProgram(program);
+      if (program) autoClickProgram(program, mergeUnits.length > 0, seq);
     }, 150);
 
     return { ok: true, shop: shopRes };
@@ -828,16 +1109,21 @@
 
   // ====== Phím tắt: đọc state từ storage và tự gọi fillAndSearch ======
   async function shortcutGoto(delta) {
-    hideDupBox();
     const data = await chrome.storage.local.get(["khArr", "unitArr", "idx"]);
+    const idx = typeof data.idx === "number" ? data.idx : -1;
+    await gotoIndex(data, idx + delta);
+  }
+
+  // `data` = storage snapshot holding khArr + unitArr. Reaches fillAndSearch without
+  // awaiting, so a caller that checked navSeq just before stays race-free.
+  async function gotoIndex(data, newIdx) {
+    hideDupBox();
     const arr = data.khArr || [];
     const units = data.unitArr || [];
     if (arr.length === 0) {
       toast("Chưa có danh sách KH. Mở extension để nạp.");
       return;
     }
-    let idx = typeof data.idx === "number" ? data.idx : -1;
-    const newIdx = idx + delta;
     if (newIdx < 0) {
       toast("Đã ở đầu danh sách");
       return;
@@ -854,6 +1140,8 @@
       await chrome.storage.local.set({ idx: newIdx });
       let warn = "";
       if (unit && res.shop && res.shop.ok === false) warn = " ⚠ Đơn vị?";
+      const missing = (res.shop && res.shop.missing) || [];
+      if (missing.length) warn += ` ⚠ Không có ĐV gộp: ${missing.join(", ")}`;
       toast(
         `${newIdx + 1}/${arr.length}: ${unit ? unit + " / " : ""}${code}${warn}`,
       );
@@ -928,6 +1216,7 @@
   // ====== Gán Type (bộ 3 giá trị) cho KH + copy 3 cột vào clipboard ======
   // `target` ({code, unit}) = KH đã chốt sẵn từ trước (Esc trong popup ảnh). Không có
   // target thì mới lấy KH hiện tại theo `idx`.
+  // Returns the KH written to ({code, unit}), or undefined when nothing was saved.
   async function setTypeForCurrent(typeArr, target) {
     const data = await chrome.storage.local.get([
       "khArr",
@@ -966,6 +1255,7 @@
     toast(
       `${code} → ${typeArr.join(" / ")}${copied ? " (đã copy 3 cột, Ctrl+V vào Sheets)" : ""}`,
     );
+    return { code, unit };
   }
 
   // Lấy bộ 3 giá trị cho 1 phím. Phím "a" (Đạt) ĐỘNG theo 2 lựa chọn số mặt + số ảnh
@@ -982,20 +1272,35 @@
     return TYPE_KEY_MAP[k] || null;
   }
 
-  async function assignTypeKey(k, target) {
-    const triple = await tripleForKey(k);
-    if (triple) await setTypeForCurrent(triple, target);
+  // Returns what setTypeForCurrent returns: the KH saved to, or undefined.
+  // `preset` = triple already read by the caller (see autoPassWhenEnough).
+  async function assignTypeKey(k, target, preset) {
+    // A late save aimed at an earlier popup's KH (Esc waiting on a slow image save)
+    // must not cancel the auto pass of the popup open now: see saveSeq.
+    if (!target || target === popupKh) saveSeq++; // before any await
+    const triple = preset || (await tripleForKey(k));
+    if (triple) return setTypeForCurrent(triple, target);
   }
 
   // ====== Ô nhập "Mã KH trùng" (hiện khi bấm phím =) ======
   let dupBox = null;
   let dupInput = null;
   let dupLabel = null;
+  // Auto next held back while the box was open (see autoNextAfterSave); runs once the
+  // box is closed with Enter or Esc.
+  let pendingAutoNext = null;
+
+  function runPendingAutoNext() {
+    const run = pendingAutoNext;
+    pendingAutoNext = null;
+    if (run) run();
+  }
 
   function buildDupBox() {
     if (dupBox) return;
     dupBox = document.createElement("div");
     dupBox.id = "__kh_dup_box__";
+    // z-index above the image popup overlay (1000002): "=" also opens this box over it.
     dupBox.style.cssText = `
       position: fixed;
       bottom: 70px;
@@ -1006,7 +1311,7 @@
       border-radius: 10px;
       box-shadow: 0 8px 24px rgba(0,0,0,0.25);
       padding: 12px;
-      z-index: 1000000;
+      z-index: 1000003;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       display: none;
     `;
@@ -1049,9 +1354,11 @@
         const code = dupBox.dataset.code || "";
         saveDup(key, code, dupInput.value.trim());
         hideDupBox();
+        runPendingAutoNext();
       } else if (ev.key === "Escape") {
         ev.preventDefault();
         hideDupBox();
+        runPendingAutoNext();
       }
     });
   }
@@ -1420,20 +1727,69 @@
       // Popup ảnh đang mở (chế độ slide):
       //   Esc -> close popup + reset fancybox; auto-assign "a" when "số ảnh cần đạt"
       //          is met, else the "Có <n> ảnh đạt" fail key (see partialPassKey)
+      //   With Auto next on, a saved result (Esc or a type key) also moves to the
+      //   next KH, and reaching "số ảnh cần đạt" saves "a" without Esc (see score()).
       //   ← / ↓ -> ảnh trước ; → / ↑ -> ảnh sau
       //   1 -> chấm Đạt ; 0 -> chấm Chưa đạt (ảnh hiện tại)
       //   phím gán Type -> lưu kết quả KH; phím "Không Đạt" chấm luôn ảnh hiện tại = 0
+      //   = -> open the Mã KH trùng box over the popup
       //   phím khác -> bỏ qua
-      if (document.getElementById("__kh_img_popup__")) {
+      // An auto next is waiting on the Mã KH trùng box and its toast asks for Enter /
+      // Esc: act on the box even with focus outside it, rather than letting the popup
+      // Esc below run, which would overwrite the result just saved.
+      if (
+        (e.key === "Enter" || e.key === "Escape") &&
+        pendingAutoNext &&
+        e.target !== dupInput &&
+        dupBox.style.display !== "none"
+      ) {
+        e.preventDefault();
+        if (e.key === "Enter") {
+          saveDup(
+            dupBox.dataset.key || "",
+            dupBox.dataset.code || "",
+            dupInput.value.trim(),
+          );
+        }
+        hideDupBox();
+        runPendingAutoNext();
+        return;
+      }
+
+      // Right after an auto next (see autoNavAt). Checked before the "3" paste and the
+      // editable early return: fillAndSearch focuses the Mã KH input for ~150ms, and a
+      // key let through there is typed into the search code.
+      if (
+        performance.now() - autoNavAt < AUTO_NAV_GUARD_MS &&
+        e.target !== dupInput &&
+        !document.getElementById("__kh_img_popup__") &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey &&
+        (e.key.length === 1 || e.key === "ArrowLeft" || e.key === "ArrowRight")
+      ) {
+        e.preventDefault();
+        toast("Auto next vừa sang KH mới — bỏ qua phím vừa bấm");
+        return;
+      }
+
+      // Keys typed into that box skip this branch, so they reach the input like they
+      // do without the popup (plain text, "3" pastes) instead of scoring images.
+      if (document.getElementById("__kh_img_popup__") && e.target !== dupInput) {
         if (e.key === "Escape") {
           e.preventDefault();
           // Đếm từ popupItems, KHÔNG qua popupApi: popupApi có thể đã bị xóa
           // (reload extension để lại overlay cũ, close/rebuild...) trong khi
           // overlay vẫn còn trong DOM -> trước đây Esc im lặng không lưu gì.
           console.log("[KH Esc] Esc trong popup ảnh -> đóng + xét tự gán A");
+          const seq = navSeq;
           closeImagePopup();
           closeNativeFancybox();
-          autoAssignPassOnEsc();
+          autoAssignPassOnEsc().then((saved) => autoNextAfterSave(seq, saved));
+        } else if (e.key === "Tab") {
+          // Same as the ✕ button: close only, unlike Esc it saves no result.
+          e.preventDefault();
+          closeImagePopup();
         } else if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
           e.preventDefault();
           if (popupApi) popupApi.prev();
@@ -1456,17 +1812,25 @@
           } else {
             toast("KH này không có Mã KH 23 ký tự");
           }
+        } else if (e.key === "=") {
+          e.preventDefault();
+          promptDupForCurrent();
         } else {
           // Phím gán Type (a, b, c, ...) vẫn chạy được khi popup đang mở.
           // Phím "Không Đạt" gán xong thì tự chấm 0 cho ảnh đang xem (như bấm phím 0).
           const k = (e.key || "").toLowerCase();
           if (TYPE_KEY_MAP[k]) {
             e.preventDefault();
+            // A held key would re-save once per repeat, and with Auto next each repeat
+            // can land on the following KH.
+            if (e.repeat) return;
             // Capture the api now: assignTypeKey awaits storage + clipboard, and the
             // popup can be closed (popupApi nulled) before it resolves.
             const api = popupApi;
-            assignTypeKey(k).then(() => {
+            const seq = navSeq;
+            assignTypeKey(k).then((saved) => {
               if (isFailKey(k) && api) api.scoreCurrent(false);
+              autoNextAfterSave(seq, saved);
             });
           }
         }
@@ -1537,7 +1901,9 @@
       const k = (e.key || "").toLowerCase();
       if (TYPE_KEY_MAP[k]) {
         e.preventDefault();
-        assignTypeKey(k);
+        if (e.repeat) return; // see the popup branch
+        const seq = navSeq;
+        assignTypeKey(k).then((saved) => autoNextAfterSave(seq, saved));
       }
     },
     true,

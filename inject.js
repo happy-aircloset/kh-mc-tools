@@ -50,22 +50,31 @@
     return null;
   }
 
-  function setShop(text) {
+  // `texts` = the row's unit first, then the "Gộp đơn vị" units. Only the row's unit
+  // must match; a merge unit with no option is skipped and reported in `missing`.
+  function setShop(texts) {
     var jq = getJQ();
     if (!jq) return { ok: false, error: "Không tìm thấy jQuery của trang" };
 
     var ms = jq("#shop").data("kendoMultiSelect");
     if (!ms) return { ok: false, error: "Không tìm thấy widget kendoMultiSelect #shop" };
 
-    var val = resolveValueByText(ms, text);
-    if (val == null) {
-      return { ok: false, error: "Đơn vị không khớp option: " + text };
+    var vals = [];
+    var missing = [];
+    for (var i = 0; i < texts.length; i++) {
+      var val = resolveValueByText(ms, texts[i]);
+      if (val == null) {
+        if (i === 0) return { ok: false, error: "Đơn vị không khớp option: " + texts[0] };
+        missing.push(texts[i]);
+      } else if (vals.indexOf(val) < 0) {
+        vals.push(val);
+      }
     }
 
-    // value([...]) thay thế toàn bộ lựa chọn hiện tại bằng đúng 1 đơn vị
-    ms.value([val]);
+    // value([...]) replaces the whole current selection
+    ms.value(vals);
     ms.trigger("change");
-    return { ok: true, value: val };
+    return { ok: true, value: vals, missing: missing };
   }
 
   // ====== Bắt response /images/get-images-for-popup để dựng popup gallery riêng ======
@@ -207,10 +216,11 @@
 
       var res = { source: "KH_AUTO_NEXT_PAGE", reqId: d.reqId };
       try {
-        var r = setShop(d.text);
+        var r = setShop(d.texts || [d.text]);
         res.ok = r.ok;
         res.error = r.error;
         res.value = r.value;
+        res.missing = r.missing;
       } catch (e) {
         res.ok = false;
         res.error = String(e);

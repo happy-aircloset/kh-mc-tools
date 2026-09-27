@@ -43,6 +43,15 @@
       resize: vertical;
     }
     textarea:focus { outline: none; border-color: #0f4c81; }
+    input[type="text"] {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-family: "SF Mono", Menlo, monospace;
+      font-size: 12px;
+    }
+    input[type="text"]:focus { outline: none; border-color: #0f4c81; }
     select {
       width: 100%;
       padding: 8px;
@@ -117,6 +126,16 @@
       font-size: 10px;
       border: 1px solid #d1d5db;
     }
+    .check-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: #1f2937;
+      cursor: pointer;
+      margin-bottom: 0;
+    }
+    .check-row input { width: 16px; height: 16px; cursor: pointer; }
     .key-legend { margin: 4px 0 6px; }
     .key-legend .kl-row {
       display: flex;
@@ -163,6 +182,14 @@
   </div>
 
   <div class="section">
+    <label for="mergeBaseUnitsInput">Đơn vị gốc:</label>
+    <input type="text" id="mergeBaseUnitsInput" placeholder="VD: DN1001M1 (nhiều mã cách nhau bởi dấu phẩy / khoảng trắng)">
+    <label for="mergeUnitsInput" style="margin-top: 8px;">Gộp đơn vị:</label>
+    <input type="text" id="mergeUnitsInput" placeholder="VD: DN1003M1 (nhiều mã cách nhau bởi dấu phẩy / khoảng trắng)">
+    <div class="hint">Chỉ dòng có Đơn vị thuộc <b>Đơn vị gốc</b> mới được gộp: ô <b>Đơn vị</b> chọn thêm các mã <b>Gộp đơn vị</b> rồi Tìm kiếm, chấm theo chương trình mở <b>tất cả</b> album khớp (mỗi đơn vị 1 album) và gom hết ảnh vào 1 popup. Dòng thuộc đơn vị khác lọc như cũ. Trống 1 trong 2 ô = không gộp.</div>
+  </div>
+
+  <div class="section">
     <label for="monthSelect">Tháng chấm ảnh:</label>
     <select id="monthSelect"></select>
     <div class="hint">Tháng quyết định phần <b>MM</b> trong mã chương trình bên dưới (vd tháng <b>07</b> → <code>CTTBGTTQ<b>07</b>26SSML_MCM</code>). Mặc định = tháng hiện tại.</div>
@@ -195,6 +222,14 @@
     <label for="soMatSelect">Chọn số mặt:</label>
     <select id="soMatSelect"></select>
     <div class="hint">Phím <kbd>A</kbd> (Đạt) sẽ gán: <b>số mặt</b> · Đạt · <b>số ảnh cần đạt</b> theo 2 lựa chọn trên.</div>
+  </div>
+
+  <div class="section">
+    <label class="check-row" for="autoNextChk">
+      <input type="checkbox" id="autoNextChk">
+      <span><b>Auto next</b> — lưu xong kết quả tự sang KH tiếp</span>
+    </label>
+    <div class="hint">Đủ <b>số ảnh cần đạt</b> → tự lưu phím <kbd>A</kbd> + Next, không cần <kbd>Esc</kbd>. Bấm <kbd>Esc</kbd> hoặc phím gán giá trị lưu xong cũng tự đóng popup ảnh + Next. Tắt → bấm <kbd>Esc</kbd> rồi <kbd>→</kbd> như cũ.</div>
   </div>
 
   <div class="section progress">
@@ -230,7 +265,7 @@
     💡 Phím tắt: <kbd>→</kbd> Next &nbsp; <kbd>←</kbd> Prev &nbsp; <kbd>=</kbd> Nhập Mã KH trùng<br>
     <kbd>1</kbd> Đạt trưng bày + Lưu &nbsp; <kbd>0</kbd> Không đạt + Lưu (chỉ khi ảnh có value)<br>
     <kbd>2</kbd> Đồng ý &nbsp; <kbd>3</kbd> Hủy bỏ (khi không focus ô nhập)<br>
-    Trong popup ảnh: <kbd>2</kbd> copy <b>Mã KH 23 ký tự</b> &nbsp;·&nbsp; đang focus ô nhập: <kbd>3</kbd> paste clipboard<br>
+    Trong popup ảnh: <kbd>2</kbd> copy <b>Mã KH 23 ký tự</b> &nbsp;·&nbsp; <kbd>Tab</kbd> chỉ đóng popup (như nút ✕, không lưu gì) &nbsp;·&nbsp; đang focus ô nhập: <kbd>3</kbd> paste clipboard<br>
     Mỗi lần Next: chọn <b>Đơn vị</b> → điền <b>Mã KH</b> → bấm <b>Tìm kiếm</b>.<br>
     <span style="display:inline-block;margin-top:6px;">Phím gán giá trị (cột3 / cột4 / cột5):</span>
     <div id="keyLegend" class="key-legend"></div>

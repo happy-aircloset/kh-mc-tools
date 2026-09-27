@@ -3,6 +3,8 @@
 const $ = (id) => document.getElementById(id);
 
 const elKhList = $("khList");
+const elMergeBaseUnits = $("mergeBaseUnitsInput");
+const elMergeUnits = $("mergeUnitsInput");
 const elCurrent = $("currentKH");
 const elProgress = $("progressInfo");
 const elStatus = $("status");
@@ -15,6 +17,7 @@ const elDuration = $("durationSelect");
 const elProgram = $("programSelect");
 const elSoAnh = $("soAnhSelect");
 const elSoMat = $("soMatSelect");
+const elAutoNext = $("autoNextChk");
 const elResultsView = $("resultsView");
 const elResultsCount = $("resultsCount");
 const btnCopyTsv = $("btnCopyTsv");
@@ -29,6 +32,8 @@ async function getState() {
     "khFullArr",
     "idx",
     "rawList",
+    "mergeBaseUnits",
+    "mergeUnits",
     "results",
     "dups",
     "month",
@@ -36,6 +41,7 @@ async function getState() {
     "program",
     "soAnh",
     "soMat",
+    "autoNext",
   ]);
   return {
     khArr: data.khArr || [],
@@ -43,6 +49,8 @@ async function getState() {
     khFullArr: data.khFullArr || [],
     idx: typeof data.idx === "number" ? data.idx : -1,
     rawList: data.rawList || "",
+    mergeBaseUnits: data.mergeBaseUnits || "",
+    mergeUnits: data.mergeUnits || "",
     results: data.results || {},
     dups: data.dups || {},
     month: data.month || currentMM(),
@@ -50,6 +58,7 @@ async function getState() {
     program: data.program || "",
     soAnh: data.soAnh || "",
     soMat: data.soMat || "",
+    autoNext: data.autoNext === true,
   };
 }
 
@@ -314,6 +323,8 @@ async function gotoIndex(newIdx) {
     if (unit && resp && resp.shop && resp.shop.ok === false) {
       msg += " (⚠ Đơn vị không khớp)";
     }
+    const missing = (resp && resp.shop && resp.shop.missing) || [];
+    if (missing.length) msg += ` (⚠ Không có ĐV gộp: ${missing.join(", ")})`;
     setStatus(msg, "success");
   } catch (err) {
     setStatus(`Lỗi: ${err.message}`, "error");
@@ -331,6 +342,22 @@ btnStart.addEventListener("click", async () => {
   render({ khArr: khs, unitArr: units, idx: -1, rawList: raw });
   setStatus(`Đã nạp ${khs.length} dòng. Bấm Next để bắt đầu.`, "success");
 });
+
+// Saved on every keystroke: closing the popup does not fire "change" on the inputs.
+async function saveMergeUnits() {
+  await setState({
+    mergeBaseUnits: elMergeBaseUnits.value,
+    mergeUnits: elMergeUnits.value,
+  });
+  const base = elMergeBaseUnits.value.trim();
+  const merged = elMergeUnits.value.trim();
+  setStatus(
+    base && merged ? `Gộp đơn vị: ${base} + ${merged}` : "Không gộp đơn vị",
+    "success",
+  );
+}
+elMergeBaseUnits.addEventListener("input", saveMergeUnits);
+elMergeUnits.addEventListener("input", saveMergeUnits);
 
 elMonth.addEventListener("change", async () => {
   // Đổi tháng = đổi mã chương trình, giữ nguyên hậu tố đang chọn.
@@ -385,6 +412,16 @@ elSoMat.addEventListener("change", async () => {
   setStatus(`Số mặt: ${elSoMat.value}`, "success");
 });
 
+elAutoNext.addEventListener("change", async () => {
+  await setState({ autoNext: elAutoNext.checked });
+  setStatus(
+    elAutoNext.checked
+      ? "Bật Auto next: lưu xong kết quả tự sang KH tiếp"
+      : "Tắt Auto next: bấm Esc rồi → như cũ",
+    "success",
+  );
+});
+
 btnNext.addEventListener("click", async () => {
   const state = await getState();
   await gotoIndex(state.idx + 1);
@@ -399,11 +436,14 @@ btnReset.addEventListener("click", async () => {
   if (!confirm("Reset toàn bộ danh sách, tiến độ và kết quả Type?")) return;
   await chrome.storage.local.clear();
   elKhList.value = "";
+  elMergeBaseUnits.value = "";
+  elMergeUnits.value = "";
   elMonth.value = currentMM();
   elDuration.value = "1";
   buildProgramOptions(elMonth.value, elDuration.value, "");
   elSoAnh.value = (window.SO_ANH_OPTIONS || [])[0] || "";
   elSoMat.value = (window.SO_MAT_OPTIONS || [])[0] || "";
+  elAutoNext.checked = false; // storage was cleared, so it reads as off again
   await setState({
     month: elMonth.value,
     soAnh: elSoAnh.value,
@@ -511,6 +551,8 @@ function renderKeyLegend() {
 (async function init() {
   const state = await getState();
   elKhList.value = state.rawList;
+  elMergeBaseUnits.value = state.mergeBaseUnits;
+  elMergeUnits.value = state.mergeUnits;
   fillSelect(elMonth, MONTH_OPTIONS);
   elMonth.value = state.month;
   elDuration.value = state.duration;
@@ -525,6 +567,7 @@ function renderKeyLegend() {
   fillSelect(elSoMat, window.SO_MAT_OPTIONS || []);
   elSoAnh.value = state.soAnh || (window.SO_ANH_OPTIONS || [])[0] || "";
   elSoMat.value = state.soMat || (window.SO_MAT_OPTIONS || [])[0] || "";
+  elAutoNext.checked = state.autoNext;
   // Lưu lại giá trị mặc định để content.js luôn có dữ liệu cho phím "a".
   await setState({
     month: elMonth.value,

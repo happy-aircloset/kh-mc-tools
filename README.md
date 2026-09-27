@@ -40,6 +40,23 @@ AT1001M1	00B
 
 (Dòng chỉ có 1 cột sẽ được hiểu là Mã KH, Đơn vị để trống.)
 
+### 1b) Gộp đơn vị
+- 2 ô trong popup, mỗi ô nhập 1 hoặc nhiều mã đơn vị (cách nhau bởi dấu phẩy / khoảng trắng):
+  - **Đơn vị gốc** — đơn vị được phép gộp, vd `DN1001M1`.
+  - **Gộp đơn vị** — đơn vị lọc thêm cùng đơn vị gốc, vd `DN1003M1`.
+- Mỗi lần Next/Tìm kiếm, dòng có Đơn vị **thuộc Đơn vị gốc** → ô **Đơn vị** trên trang chọn
+  **đơn vị của dòng + các mã gộp** rồi mới tìm (vd dòng `DN1001M1 / 006` → lọc cả `DN1001M1`
+  và `DN1003M1`).
+- Dòng có Đơn vị **khác Đơn vị gốc** (vd `AT1001M1 / 00A`) → không gộp, chỉ lọc đúng đơn vị
+  của dòng như cũ.
+- Khi đang **Chấm theo chương trình** (mục 3b) và kết quả có nhiều album cùng chương trình
+  (mỗi đơn vị 1 album), extension lần lượt mở **từng album**, lấy ảnh của từng cái rồi gom
+  **tất cả** vào 1 popup ảnh (tiêu đề hiện các đơn vị, vd `DN1001M1 + DN1003M1`).
+  Chỉ có 1 album → như cũ.
+- Mã gộp không có trong ô Đơn vị → bỏ qua mã đó, toast `⚠ Không có ĐV gộp: <mã>`.
+- Dòng không có Đơn vị (danh sách 1 cột) → không đụng ô Đơn vị, kể cả mã gộp.
+- Để trống 1 trong 2 ô = không gộp. Đổi ô có hiệu lực từ lần Next/Tìm kiếm tiếp theo.
+
 ### 2) Mở trang Quản lý media → Hình ảnh
 
 ### 3) Next qua từng dòng
@@ -128,6 +145,12 @@ Cũng option đó nhưng chỉ chấm `1` cho 1 ảnh rồi bấm `Esc`
 Chọn **"Có 4 ảnh đạt"**, chấm `1` cho 2 ảnh rồi bấm `Esc`
 → dòng kết quả tự có `0  Không Đạt  Có 2 ảnh đạt`.
 
+### 4d2) Popup ảnh — phím `Tab` chỉ đóng popup
+
+Bấm **`Tab`** khi popup gallery ảnh đang mở → đóng popup, **không làm gì khác**, y như bấm nút
+**✕ Đóng (Tab/Esc)**: không tự lưu kết quả, không Next (khác `Esc` ở mục 4d). Đang gõ trong ô
+**Mã KH trùng** thì `Tab` vẫn là phím Tab bình thường của ô.
+
 ### 4e) Trong popup ảnh — phím "Không Đạt" tự chấm ảnh 0
 
 Khi **popup gallery ảnh đang mở**, bấm một phím có cột 4 = `Không Đạt`
@@ -143,10 +166,52 @@ cũng **không** tự chấm — giữ nguyên hành vi cũ.
 Nhận diện phím "Không Đạt" dựa trên **cột 4 trong `keymap.js`**, nên thêm lý do mới
 vào `TYPE_KEY_MAP` là tự động có tính năng này, không phải sửa `content.js`.
 
+### 4f) Popup ảnh — chấm xong tự sang ảnh của ngày kế tiếp
+
+Trong popup gallery ảnh, chấm 1 ảnh xong (phím `1` / `0`, nút `✓ Đạt` / `✗ Chưa đạt`,
+hoặc phím "Không Đạt" ở mục 4e) → tự chuyển sang **ảnh kế tiếp chụp ngày khác**:
+
+- Ngày lấy theo ngày hiện dưới footer popup (`17/09/2026-10:37` → ngày `17/09/2026`).
+- Tìm tiếp về phía sau tới ảnh đầu tiên khác ngày với ảnh vừa chấm; hết thì quay lại đầu danh sách.
+- Ảnh ngày khác **đã chấm rồi vẫn chuyển tới** (không bỏ qua như trước).
+- Ví dụ: ảnh `17/09` ×2, `04/09` ×2, `01/09` ×1 — chấm ảnh `17/09` đầu tiên → nhảy sang ảnh
+  `04/09` đầu tiên; chấm ảnh `01/09` → quay lại ảnh `17/09` đầu tiên.
+- Mọi ảnh cùng 1 ngày → không có ngày khác để nhảy, nên chuyển sang **ảnh chưa chấm kế tiếp**
+  như cũ (chấm hết thì đứng yên, bấm `Esc` để lưu kết quả — mục 4d).
+
+### 4g) Auto next — lưu xong kết quả tự sang KH tiếp
+
+Tích ô **Auto next** trong popup extension (mặc định tắt). Khi bật:
+
+| Tình huống | Không bật (như cũ) | Bật Auto next |
+| --- | --- | --- |
+| Popup ảnh: chấm `1` đến khi **đủ số ảnh cần đạt** | bấm `Esc` rồi `→` | tự lưu kết quả phím `A` + đóng popup + Next, **không cần `Esc`** |
+| Popup ảnh: chưa đủ, bấm `Esc` (tự lưu `Có <n> ảnh đạt`) | bấm `→` | tự Next |
+| Popup ảnh: bấm phím gán giá trị (`a b c …`) | đóng popup rồi bấm `→` | tự đóng popup + Next |
+| Không có popup: bấm phím gán giá trị | bấm `→` | tự Next |
+| `Esc` mà 0 ảnh đạt / chưa chọn số ảnh, số mặt (không lưu gì) | — | đứng yên, không Next |
+
+- Đủ số ảnh đạt thì Next luôn, các ảnh còn lại **không được chấm**.
+- Luôn **đợi các lần chấm ảnh lưu xong** rồi mới Next. Lưu lỗi làm tụt dưới số ảnh cần đạt →
+  không tự lưu, chấm tiếp đủ thì tự lưu lại.
+- Chỉ Next khi vẫn đang ở đúng KH vừa lưu: bấm `→` tay trong lúc chờ không bị nhảy 2 KH.
+- Ngay sau khi tự Next (~0.7 giây), mọi phím 1 ký tự (`a`…`z`, `=`, `0`–`3`) và `←` `→` bị bỏ
+  qua (có toast báo), và giữ phím gán giá trị không lặp lại: bấm 2 lần / thói quen bấm `→`
+  không ghi nhầm, không gõ lạc vào ô Mã KH, không nhảy qua KH mới.
+- Đang mở ô **Mã KH trùng** (`=`) → chờ Enter (lưu) / Esc (bỏ) ô đó xong mới Next, kể cả khi con
+  trỏ đã rời ô. Nên làm theo thứ tự `=` → nhập mã → Enter **rồi mới** bấm phím lý do (vd `H`),
+  vì phím lý do là Next luôn.
+- KH cuối → báo "Đã hết danh sách" như bấm `→`.
+- Như cũ (không đổi): `Esc` trong popup tự lưu lại `A` / `Có <n> ảnh đạt` nếu có ảnh đạt, ghi đè
+  phím vừa bấm. Muốn giữ phím lý do thì đóng popup bằng nút **✕ Đóng** hoặc phím `Tab`.
+
 ### 5) Nhập Mã KH trùng (cột 6) — phím `=`
 - Bấm `=` để mở ô nhập **Mã KH trùng** cho KH hiện tại.
 - **Enter** = lưu, **Esc** = đóng, để trống + Enter = xóa.
 - Ô tự đóng khi Next/Prev.
+- Dùng được cả khi **popup ảnh đang mở**: ô nhập hiện đè lên popup. Gõ trong ô không bị hiểu
+  là phím chấm (`1` `0` `a`…), `3` vẫn paste clipboard; `Esc` trong ô chỉ đóng ô, popup ảnh
+  vẫn mở.
 
 Ví dụ: tại `AT1001M1 / 0CP`, bấm `H` rồi bấm `=` nhập `KV3AT1001M1090SM1001163`, dòng kết quả:
 
@@ -176,6 +241,13 @@ Kết quả mỗi dòng gồm 6 cột: **Đơn vị | Mã KH | val1 | val2 | val
 
 ## Lịch sử
 
+- 1.3.31: phím **`Tab`** trong popup ảnh chỉ đóng popup (như nút ✕, không lưu kết quả, không Next). Nút đổi nhãn thành **✕ Đóng (Tab/Esc)**.
+- 1.3.30: thêm ô **Đơn vị gốc** cho Gộp đơn vị — chỉ dòng có Đơn vị thuộc Đơn vị gốc mới được lọc gộp; dòng thuộc đơn vị khác lọc như cũ.
+- 1.3.29: popup ảnh chấm xong tự sang **ảnh của ngày kế tiếp** (ảnh đầu tiên khác ngày phía sau, kể cả ảnh đã chấm) thay vì ảnh chưa chấm kế tiếp. Chỉ có 1 ngày → sang ảnh chưa chấm kế tiếp như cũ.
+- 1.3.28: thêm ô **Gộp đơn vị**. Tìm kiếm chọn thêm các đơn vị gộp cùng đơn vị của dòng; chấm theo chương trình mở hết album khớp (mỗi đơn vị 1 album) và gom ảnh vào 1 popup.
+- 1.3.27: thêm ô **Auto next**. Bật → đủ số ảnh cần đạt tự lưu phím `A` + sang KH tiếp (không cần `Esc`); `Esc` hoặc phím gán giá trị lưu xong cũng tự đóng popup ảnh + Next. Tắt → như cũ.
+- 1.3.26: bấm `=` được ngay trong popup ảnh (ô Mã KH trùng hiện đè lên popup); gõ trong ô không bị hiểu là phím chấm, `Esc` trong ô chỉ đóng ô.
+- 1.3.25: popup ảnh chấm `1` / `0` (hoặc nút ✓/✗, phím Không Đạt) xong tự sang ảnh chưa chấm kế tiếp, quay lại ảnh bị bỏ qua; chấm hết thì đứng yên.
 - 1.3.24: thêm option **Chương trình kéo dài** (`1 tháng` / `2 tháng`). `2 tháng` → mã chương trình có chữ `MCC` ghép thêm tháng kế tiếp (tháng `09` → `CTTBGTTQ091026STTTMCC_CHS`); chương trình khác không đổi.
 - 1.3.23: thêm option **Có 4 ảnh đạt** cho *Số ảnh cần đạt* + 2 lý do Không Đạt: phím `Z` = `Có 2 ảnh đạt`, `X` = `Có 3 ảnh đạt`. Chấm thiếu số ảnh cần đạt → `Esc` tự lưu lý do `Có <n> ảnh đạt` theo số ảnh đã đạt (1 → `I`, 2 → `Z`, 3 → `X`); 0 ảnh đạt vẫn không tự lưu.
 - 1.3.22: thêm option **Tháng chấm ảnh** (`01`–`12`, mặc định tháng hiện tại) quyết định phần `MM` của mã **Chấm theo chương trình**. Đổi tháng thì giữ nguyên hậu tố chương trình đang chọn.
