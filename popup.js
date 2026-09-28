@@ -146,24 +146,33 @@ function typeTriple(results, key) {
   return [arr[0] || "", arr[1] || "", arr[2] || ""];
 }
 
-// Build TSV theo thứ tự khArr (giữ thứ tự đúng với Sheets).
-//   typeColOnly=false -> 6 cột: Đơn vị | Mã KH | val1 | val2 | val3 | Mã KH trùng
-//   typeColOnly=true  -> 4 cột: val1 | val2 | val3 | Mã KH trùng (bỏ Đơn vị + Mã KH)
+function todayScoredDate() {
+  const d = new Date();
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  return `${dd}/${mm}/${d.getFullYear()}`;
+}
+
+// Rows follow khArr order so they line up with Sheets. typeColOnly drops unit + code.
+// Columns: unit | code | val1 | val2 | val3 | dup | scored date (blank when not scored)
 function buildTsv(khArr, unitArr, results, dups, typeColOnly = false) {
+  const scoredDate = todayScoredDate();
   return khArr
     .map((code, i) => {
       const unit = unitArr[i] || "";
       const key = rowKey(unit, code);
       const triple = typeTriple(results, key);
       const dup = (dups && dups[key]) || "";
-      if (typeColOnly) return [...triple, dup].join("\t");
-      return [unit, code, ...triple, dup].join("\t");
+      const date = results[key] || dup ? scoredDate : "";
+      if (typeColOnly) return [...triple, dup, date].join("\t");
+      return [unit, code, ...triple, dup, date].join("\t");
     })
     .join("\n");
 }
 
 function renderResults(state) {
   const { khArr, unitArr = [], results, dups = {} } = state;
+  const scoredDate = todayScoredDate();
   let count = 0;
   const lines = [];
   khArr.forEach((code, i) => {
@@ -171,7 +180,9 @@ function renderResults(state) {
     const key = rowKey(unit, code);
     if (!results[key] && !dups[key]) return;
     count++;
-    lines.push([unit, code, ...typeTriple(results, key), dups[key] || ""].join("\t"));
+    lines.push(
+      [unit, code, ...typeTriple(results, key), dups[key] || "", scoredDate].join("\t"),
+    );
   });
   elResultsCount.textContent = String(count);
   elResultsView.value = lines.join("\n");
@@ -465,7 +476,7 @@ btnCopyTsv.addEventListener("click", async () => {
   const ok = await copyToClipboard(tsv);
   setStatus(
     ok
-      ? `✓ Đã copy ${state.khArr.length} dòng (đủ 6 cột)`
+      ? `✓ Đã copy ${state.khArr.length} dòng (đủ 7 cột)`
       : "Copy thất bại",
     ok ? "success" : "error",
   );

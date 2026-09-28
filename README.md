@@ -237,10 +237,12 @@ AT1001M1	0CP	0	Không Đạt	Ảnh trùng với điểm bán khác	KV3AT1001M109
 ```
 
 ### 6) Xuất kết quả
-Kết quả mỗi dòng gồm 6 cột: **Đơn vị | Mã KH | val1 | val2 | val3 | Mã KH trùng**.
+Kết quả mỗi dòng gồm 7 cột: **Đơn vị | Mã KH | val1 | val2 | val3 | Mã KH trùng | Ngày chấm**.
 
-- **Copy đủ 6 cột** — copy toàn bộ 6 cột theo thứ tự danh sách.
-- **Copy trừ ĐV+Mã KH** — chỉ copy 4 cột giá trị (val1, val2, val3, Mã KH trùng) để dán cạnh danh sách có sẵn.
+**Ngày chấm** = ngày hiện tại, dạng `dd/mm/yyyy` (vd `28/09/2026`). Mã KH trùng trống vẫn giữ Tab ngăn cột, nên Ngày chấm luôn dán đúng cột 7. Dòng chưa chấm để trống Ngày chấm.
+
+- **Copy đủ 7 cột** — copy toàn bộ 7 cột theo thứ tự danh sách.
+- **Copy trừ ĐV+Mã KH** — chỉ copy 5 cột giá trị (val1, val2, val3, Mã KH trùng, Ngày chấm) để dán cạnh danh sách có sẵn.
 - **Xóa kết quả** — xóa toàn bộ giá trị đã gán (gồm cả cột Mã KH trùng).
 - **Reset** — xóa cả danh sách + tiến độ + kết quả.
 
@@ -258,6 +260,7 @@ Kết quả mỗi dòng gồm 6 cột: **Đơn vị | Mã KH | val1 | val2 | val
 
 ## Lịch sử
 
+- 1.3.34: kết quả thêm cột 7 **Ngày chấm** (ngày hiện tại, `dd/mm/yyyy`) sau Mã KH trùng; Mã KH trùng trống vẫn giữ đúng cột.
 - 1.3.33: phím **`` ` ``** trong popup ảnh nhảy về ảnh đầu tiên.
 - 1.3.32: phím **`Shift`** (bấm riêng) trong popup ảnh nhảy tới ảnh đã chấm kế tiếp, hết thì quay lại đầu.
 - 1.3.31: phím **`Tab`** trong popup ảnh chỉ đóng popup (như nút ✕, không lưu kết quả, không Next). Nút đổi nhãn thành **✕ Đóng (Tab/Esc)**.
