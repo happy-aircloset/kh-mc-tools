@@ -126,15 +126,21 @@ messager (`div.messager-body` → `div.messager-button` → `a.l-btn`) và chỉ
 ### 4d) Đủ số ảnh đạt → bấm `Esc` tự lưu kết quả phím `A`
 Trong **popup gallery ảnh** (phím `1` = Đạt, `0` = Chưa đạt cho từng ảnh):
 
-- Header popup hiện bộ đếm `3 / 5 · Đạt 2/2` — vế sau là **số ảnh đã đạt / số ảnh cần đạt**
-  (lấy từ option **Số ảnh cần đạt** trong popup extension). Đủ số → đếm chuyển màu xanh.
+- Header popup hiện bộ đếm `3 / 5 · Đạt 2/2` — vế sau là **số ảnh chấm đạt trong lượt này /
+  số ảnh cần đạt** (lấy từ option **Số ảnh cần đạt** trong popup extension). Đủ số → đếm chuyển
+  màu xanh.
+- **Chỉ tính ảnh chấm `1` trong lượt vào KH hiện tại** (từ lúc sang KH tới lúc rời KH; đóng popup
+  bằng nút **✕ Đóng** rồi mở lại cùng KH vẫn giữ). Ảnh đã đạt từ lượt trước (kết quả cũ trên
+  server) vẫn hiện ✓ nhưng **không được tính, phải chấm lại** — footer ảnh đó hiện
+  `trước: ✓ Đạt` kèm 2 nút chấm. Rời KH rồi quay lại → đếm lại từ 0.
 - Bấm **`Esc`** khi đã đủ số ảnh đạt → popup đóng **và tự gán kết quả của phím `A`**
   (bộ 3 `số mặt / Đạt / số ảnh cần đạt`) cho KH hiện tại + copy 3 cột vào clipboard,
   y như bấm `A` thủ công.
 - Chưa đủ **nhưng có ảnh đạt** → `Esc` tự gán phím lý do `0 / Không Đạt / Có <n> ảnh đạt`
   đúng số ảnh đã đạt + copy 3 cột: 1 ảnh → **`I`**, 2 ảnh → **`Z`**, 3 ảnh → **`X`**
   (vd chọn "Có 4 ảnh đạt" mà chỉ chấm đạt 3 ảnh → phím `X`).
-- Chưa đủ và **0 ảnh đạt** → `Esc` chỉ đóng popup như cũ, không gán gì.
+- Chưa đủ và **0 ảnh đạt trong lượt này** → `Esc` chỉ đóng popup, không gán gì (kể cả KH đã
+  đạt từ lượt trước).
 - Extension **đợi các lần chấm đang lưu xong rồi mới đếm**: ảnh chấm lỗi bị hoàn tác
   sẽ không được tính là đạt.
 
@@ -144,14 +150,13 @@ Cũng option đó nhưng chỉ chấm `1` cho 1 ảnh rồi bấm `Esc`
 → dòng kết quả tự có `0  Không Đạt  Có 1 ảnh đạt`.
 Chọn **"Có 4 ảnh đạt"**, chấm `1` cho 2 ảnh rồi bấm `Esc`
 → dòng kết quả tự có `0  Không Đạt  Có 2 ảnh đạt`.
+KH đã đạt 2 ảnh từ lượt trước, mở lại rồi bấm `Esc` ngay → không lưu gì; phải chấm `1` lại
+2 ảnh rồi mới tự lưu `A`.
 
-### 4d2) Popup ảnh — phím `Tab` chỉ đóng popup
+Phím `Tab` trong popup ảnh và trong ô **Mã KH trùng** **không làm gì** (đóng popup mà không lưu
+thì bấm nút **✕ Đóng**).
 
-Bấm **`Tab`** khi popup gallery ảnh đang mở → đóng popup, **không làm gì khác**, y như bấm nút
-**✕ Đóng (Tab/Esc)**: không tự lưu kết quả, không Next (khác `Esc` ở mục 4d). Đang gõ trong ô
-**Mã KH trùng** thì `Tab` vẫn là phím Tab bình thường của ô.
-
-### 4d3) Popup ảnh — phím `Shift` nhảy tới ảnh đã chấm
+### 4d2) Popup ảnh — phím `Shift` nhảy tới ảnh đã chấm
 
 Trong popup gallery ảnh, bấm **`Shift`** (bấm riêng, rồi thả) → nhảy tới **ảnh đã chấm kế tiếp**
 trong dải thumbnail (ảnh có ✓ hoặc ✕, gồm cả ảnh chấm từ trước trên server):
@@ -162,7 +167,7 @@ trong dải thumbnail (ảnh có ✓ hoặc ✕, gồm cả ảnh chấm từ tr
   (vd `Shift+B`) vẫn chạy như phím đó, không nhảy ảnh.
 - Đang gõ trong ô **Mã KH trùng** → `Shift` không nhảy.
 
-### 4d4) Popup ảnh — phím `` ` `` về ảnh đầu tiên
+### 4d3) Popup ảnh — phím `` ` `` về ảnh đầu tiên
 
 Trong popup gallery ảnh, bấm **`` ` ``** (phím bên trái số `1`) → nhảy về **ảnh đầu tiên** trong
 dải thumbnail (chỉ chuyển ảnh, không chấm, không lưu gì). Nhận theo vị trí phím nên vẫn chạy khi
@@ -189,12 +194,15 @@ Trong popup gallery ảnh, chấm 1 ảnh xong (phím `1` / `0`, nút `✓ Đạ
 hoặc phím "Không Đạt" ở mục 4e) → tự chuyển sang **ảnh kế tiếp chụp ngày khác**:
 
 - Ngày lấy theo ngày hiện dưới footer popup (`17/09/2026-10:37` → ngày `17/09/2026`).
-- Tìm tiếp về phía sau tới ảnh đầu tiên khác ngày với ảnh vừa chấm; hết thì quay lại đầu danh sách.
-- Ảnh ngày khác **đã chấm rồi vẫn chuyển tới** (không bỏ qua như trước).
-- Ví dụ: ảnh `17/09` ×2, `04/09` ×2, `01/09` ×1 — chấm ảnh `17/09` đầu tiên → nhảy sang ảnh
-  `04/09` đầu tiên; chấm ảnh `01/09` → quay lại ảnh `17/09` đầu tiên.
-- Mọi ảnh cùng 1 ngày → không có ngày khác để nhảy, nên chuyển sang **ảnh chưa chấm kế tiếp**
-  như cũ (chấm hết thì đứng yên, bấm `Esc` để lưu kết quả — mục 4d).
+- Tìm tiếp về phía sau tới ảnh đầu tiên khác ngày với ảnh vừa chấm **mà lượt này chưa chấm**;
+  hết thì quay lại đầu danh sách.
+- Ảnh ngày khác **đã chấm ở lượt trước vẫn chuyển tới** (phải chấm lại, mục 4d); ảnh đã chấm
+  **trong lượt này** thì bỏ qua.
+- Ví dụ: ảnh `17/09` ×2, `04/09` ×2, `01/09` ×1 — bấm `1` liên tiếp sẽ chấm lần lượt `17/09` đầu
+  → `04/09` đầu → `01/09` → `17/09` thứ hai → `04/09` thứ hai, mỗi ảnh đúng 1 lần.
+- Ngày khác không còn ảnh nào lượt này chưa chấm (hoặc mọi ảnh cùng 1 ngày) → chuyển sang **ảnh
+  chưa chấm trong lượt này kế tiếp**, gồm cả ảnh đã chấm ở lượt trước. Chấm hết thì đứng yên, bấm
+  `Esc` để lưu kết quả.
 
 ### 4g) Auto next — lưu xong kết quả tự sang KH tiếp
 
@@ -202,11 +210,11 @@ Tích ô **Auto next** trong popup extension (mặc định tắt). Khi bật:
 
 | Tình huống | Không bật (như cũ) | Bật Auto next |
 | --- | --- | --- |
-| Popup ảnh: chấm `1` đến khi **đủ số ảnh cần đạt** | bấm `Esc` rồi `→` | tự lưu kết quả phím `A` + đóng popup + Next, **không cần `Esc`** |
+| Popup ảnh: chấm `1` đến khi **đủ số ảnh cần đạt** (đếm trong lượt này, mục 4d) | bấm `Esc` rồi `→` | tự lưu kết quả phím `A` + đóng popup + Next, **không cần `Esc`** |
 | Popup ảnh: chưa đủ, bấm `Esc` (tự lưu `Có <n> ảnh đạt`) | bấm `→` | tự Next |
 | Popup ảnh: bấm phím gán giá trị (`a b c …`) | đóng popup rồi bấm `→` | tự đóng popup + Next |
 | Không có popup: bấm phím gán giá trị | bấm `→` | tự Next |
-| `Esc` mà 0 ảnh đạt / chưa chọn số ảnh, số mặt (không lưu gì) | — | đứng yên, không Next |
+| `Esc` mà lượt này 0 ảnh đạt / chưa chọn số ảnh, số mặt (không lưu gì) | — | đứng yên, không Next |
 
 - Đủ số ảnh đạt thì Next luôn, các ảnh còn lại **không được chấm**.
 - Luôn **đợi các lần chấm ảnh lưu xong** rồi mới Next. Lưu lỗi làm tụt dưới số ảnh cần đạt →
@@ -219,12 +227,12 @@ Tích ô **Auto next** trong popup extension (mặc định tắt). Khi bật:
   trỏ đã rời ô. Nên làm theo thứ tự `=` → nhập mã → Enter **rồi mới** bấm phím lý do (vd `H`),
   vì phím lý do là Next luôn.
 - KH cuối → báo "Đã hết danh sách" như bấm `→`.
-- Như cũ (không đổi): `Esc` trong popup tự lưu lại `A` / `Có <n> ảnh đạt` nếu có ảnh đạt, ghi đè
-  phím vừa bấm. Muốn giữ phím lý do thì đóng popup bằng nút **✕ Đóng** hoặc phím `Tab`.
+- Như cũ (không đổi): `Esc` trong popup tự lưu lại `A` / `Có <n> ảnh đạt` nếu lượt này có ảnh
+  đạt, ghi đè phím vừa bấm. Muốn giữ phím lý do thì đóng popup bằng nút **✕ Đóng**.
 
 ### 5) Nhập Mã KH trùng (cột 6) — phím `=`
 - Bấm `=` để mở ô nhập **Mã KH trùng** cho KH hiện tại.
-- **Enter** = lưu, **Esc** = đóng, để trống + Enter = xóa.
+- **Enter** = lưu, **Esc** = đóng, để trống + Enter = xóa. `Tab` trong ô không làm gì.
 - Ô tự đóng khi Next/Prev.
 - Dùng được cả khi **popup ảnh đang mở**: ô nhập hiện đè lên popup. Gõ trong ô không bị hiểu
   là phím chấm (`1` `0` `a`…), `3` vẫn paste clipboard; `Esc` trong ô chỉ đóng ô, popup ảnh
@@ -260,6 +268,7 @@ Kết quả mỗi dòng gồm 7 cột: **Đơn vị | Mã KH | val1 | val2 | val
 
 ## Lịch sử
 
+- 1.3.35: popup ảnh chỉ đếm ảnh chấm Đạt **trong lượt vào KH hiện tại** — bộ đếm `Đạt x/y`, Auto next tự lưu `A`, `Esc` tự lưu `A` / `Có <n> ảnh đạt`. Ảnh đạt từ lượt trước vẫn hiện ✓ nhưng phải chấm lại (footer hiện `trước: …` kèm nút chấm; chấm xong tự nhảy tới cả ảnh đó). Chấm xong nhảy sang ngày khác thì bỏ qua ảnh đã chấm trong lượt này. Bỏ phím **`Tab`** đóng popup (giờ `Tab` trong popup và ô Mã KH trùng không làm gì); nút đổi nhãn thành **✕ Đóng**.
 - 1.3.34: kết quả thêm cột 7 **Ngày chấm** (ngày hiện tại, `dd/mm/yyyy`) sau Mã KH trùng; Mã KH trùng trống vẫn giữ đúng cột.
 - 1.3.33: phím **`` ` ``** trong popup ảnh nhảy về ảnh đầu tiên.
 - 1.3.32: phím **`Shift`** (bấm riêng) trong popup ảnh nhảy tới ảnh đã chấm kế tiếp, hết thì quay lại đầu.

@@ -403,6 +403,10 @@
   // KH sở hữu popupItems ({code, unit}), chốt lúc dựng popup. Esc lưu kết quả cho
   // ĐÚNG KH của mấy tấm ảnh vừa chấm, không đọc lại `idx` (idx có thể đã nhảy).
   let popupKh = null;
+  // Image scores of the current KH visit; only these count toward requiredPassCount, so an
+  // earlier visit's server result must be re-scored. A new object per visit, not cleared maps:
+  // a late save from the previous visit of the same KH (same image ids) must not land here.
+  let currentVisit = createVisit();
   // Auto next runs after awaits (storage, the score queue), so it cannot trust that
   // the KH it saved is still current. navSeq is bumped synchronously when any KH
   // navigation starts; an auto next captured before a manual → (or before another
@@ -419,8 +423,16 @@
   let autoNavAt = -Infinity;
   const AUTO_NAV_GUARD_MS = 700;
 
-  function countPassed(items) {
-    return (items || []).filter((x) => x && x.result === 1).length;
+  function createVisit() {
+    return {
+      resultsByImageId: new Map(),
+      savedResultsByImageId: new Map(),
+      latestScoreTokensByImageId: new Map(),
+    };
+  }
+
+  function countPassed(items, visit) {
+    return (items || []).filter((x) => x && visit.resultsByImageId.get(x.id) === 1).length;
   }
 
   // ====== Số ảnh đạt -> Esc tự lưu kết quả ======
@@ -448,14 +460,15 @@
     );
   }
 
-  // Gọi khi đóng popup ảnh bằng Esc. Đợi hàng đợi chấm điểm xong trước khi đếm,
-  // vì lần chấm thất bại sẽ hoàn tác `result` -> đếm sớm sẽ ra số sai.
+  // Called when Esc closes the image popup. Counts only once every queued save is done,
+  // since a failed one rolls its image back in the visit.
   // Returns the KH it saved a result for ({code, unit}), or undefined when it saved none.
   async function autoAssignPassOnEsc() {
-    // Chốt ảnh + KH NGAY (đồng bộ, trước await đầu tiên): scoreQueue chờ tới 8s,
-    // trong lúc đó người dùng bấm → sang KH khác thì popupItems/popupKh/idx đã đổi hết.
+    // Captured before the first await: the score queue can wait up to 8s per save, and a →
+    // meanwhile replaces popupItems, popupKh, currentVisit and idx.
     const items = popupItems;
     const target = popupKh;
+    const visit = currentVisit;
     const log = (why, extra) =>
       console.log("[KH Esc]", why, {
         items: items.length,
@@ -463,7 +476,7 @@
         ...(extra || {}),
       });
 
-    await scoreQueue;
+    await drainScoreQueue();
     const { soAnh } = await chrome.storage.local.get(["soAnh"]);
     const need = requiredPassCount(soAnh);
     if (!need) {
@@ -476,7 +489,7 @@
       toast("Esc: mất dữ liệu ảnh để đếm — mở lại popup ảnh rồi bấm Esc");
       return;
     }
-    const got = countPassed(items);
+    const got = countPassed(items, visit);
     if (got < need) {
       const partialKey = partialPassKey(got);
       if (partialKey) {
@@ -490,7 +503,7 @@
       log("bỏ qua: chưa đủ ảnh đạt", {
         need,
         got,
-        results: items.map((x) => x && x.result),
+        results: items.map((x) => x && visit.resultsByImageId.get(x.id)),
       });
       toast(`Esc: mới ${got}/${need} ảnh đạt → không tự lưu`);
       return;
@@ -554,7 +567,7 @@
   // "Số ảnh cần đạt" is re-read rather than taken from the popup, since it may have
   // changed since the popup opened, and key "a" is saved from that same read: reading
   // it again after the drain could save a label the count was not checked against.
-  async function autoPassWhenEnough(items) {
+  async function autoPassWhenEnough(items, visit) {
     const seq = navSeq;
     const saves = saveSeq;
     const target = popupKh;
@@ -567,7 +580,7 @@
     await drainScoreQueue();
     if (seq !== navSeq || popupItems !== items || saves !== saveSeq) return true;
     const need = requiredPassCount(soAnh);
-    const got = countPassed(items);
+    const got = countPassed(items, visit);
     if (!need || got < need) return false;
     closeImagePopup();
     closeNativeFancybox();
@@ -631,6 +644,12 @@
 
     closeImagePopup(); // tránh chồng popup khi mở nhiều lần
     popupItems = all; // nguồn đếm "ảnh đạt" cho Esc, sống lâu hơn popupApi
+    const visit = currentVisit;
+    const visitResultOf = (it) => visit.resultsByImageId.get(it.id);
+    const shownResultOf = (it) =>
+      visitResultOf(it) !== undefined ? visitResultOf(it) : it.result;
+    const hasResult = (it) =>
+      visitResultOf(it) !== undefined || it.isInSpected != null || it.result != null;
     popupKh = null; // set lại bên dưới sau khi đọc storage
     popupToken = (data && data.token) || null; // token để gọi updateResult
     const base = detectImgBase();
@@ -700,7 +719,7 @@
       "flex:0 0 auto;font-size:13px;font-weight:600;color:#cbd5e1;";
 
     const closeBtn = document.createElement("button");
-    closeBtn.textContent = "✕ Đóng (Tab/Esc)";
+    closeBtn.textContent = "✕ Đóng";
     closeBtn.style.cssText = `
       flex: 0 0 auto; cursor: pointer; border: none; border-radius: 6px;
       background: #ef4444; color: #fff; font-size: 13px; font-weight: 600;
@@ -803,7 +822,7 @@
       img.src = url;
       img.onclick = () => window.open(url, "_blank");
 
-      const passedCount = countPassed(all);
+      const passedCount = countPassed(all, visit);
       counter.textContent = need
         ? `${cur + 1} / ${all.length} · Đạt ${passedCount}/${need}`
         : `${cur + 1} / ${all.length}`;
@@ -822,8 +841,8 @@
       thumbEls.forEach((el, i) => {
         const on = i === cur;
         const iti = all[i];
-        const isScored = iti.isInSpected != null || iti.result != null;
-        const isPassed = iti.result === 1;
+        const isScored = hasResult(iti);
+        const isPassed = shownResultOf(iti) === 1;
         el.wrap.style.opacity = on ? "1" : "0.6";
         if (isPassed) {
           el.wrap.style.borderColor = "#4ade80"; // xanh lá — Đạt
@@ -848,23 +867,32 @@
         thumbEls[cur].wrap.scrollIntoView({ block: "nearest", inline: "center" });
       }
 
-      // Trạng thái chấm
+      renderScoreStatus(it);
+    }
+
+    function renderScoreStatus(it) {
       rightBox.replaceChildren();
-      const scored = it.isInSpected != null || it.result != null;
-      const passed = it.result === 1;
-      if (scored) {
+      const visitResult = visitResultOf(it);
+      if (visitResult !== undefined) {
+        const passed = visitResult === 1;
         const badge = document.createElement("span");
         badge.style.cssText = `font-weight:700;font-size:14px;color:${passed ? "#4ade80" : "#f87171"};`;
         badge.textContent = passed ? "✓ Đạt" : "✗ Chưa đạt";
         rightBox.appendChild(badge);
-      } else {
-        rightBox.appendChild(
-          makeScoreBtn("✓ Đạt", "#16a34a", () => score(it, true)),
-        );
-        rightBox.appendChild(
-          makeScoreBtn("✗ Chưa đạt", "#dc2626", () => score(it, false)),
-        );
+        return;
       }
+      if (it.isInSpected != null || it.result != null) {
+        const earlier = document.createElement("span");
+        earlier.style.cssText = "font-size:12px;color:#9ca3af;";
+        earlier.textContent = it.result === 1 ? "trước: ✓ Đạt" : "trước: ✗ Chưa đạt";
+        rightBox.appendChild(earlier);
+      }
+      rightBox.appendChild(
+        makeScoreBtn("✓ Đạt", "#16a34a", () => score(it, true)),
+      );
+      rightBox.appendChild(
+        makeScoreBtn("✗ Chưa đạt", "#dc2626", () => score(it, false)),
+      );
     }
 
     function go(delta) {
@@ -874,14 +902,12 @@
       render();
     }
 
-    // Jump to the next image with no score yet (same test render() uses for the ✓/✕
-    // badge), wrapping to the start so a skipped image is not missed; stays put once
-    // every image is scored. It runs before the save resolves: a failed save makes
-    // its image unscored again, so a later jump lands on it.
-    function goToNextUnscored() {
+    // Wraps to the start; stays put once every image is scored. Runs before the save
+    // resolves: a failed save rolls its image back, so a later jump lands on it.
+    function goToNextUnscoredThisVisit() {
       for (let step = 1; step < all.length; step++) {
         const i = (cur + step) % all.length;
-        if (all[i].isInSpected == null && all[i].result == null) {
+        if (visitResultOf(all[i]) === undefined) {
           cur = i;
           return;
         }
@@ -895,27 +921,27 @@
       return m ? m[0] : s;
     }
 
-    // After scoring, jump to the next image taken on another day, even an already scored
-    // one (wrapping to the start). With a single day there is no other day to jump to,
-    // so fall back to the next unscored image.
+    // After scoring, jump to the next image taken on another day that this visit has not
+    // scored yet, an earlier visit's result included (wrapping to the start). None left on
+    // another day -> the next image not scored this visit.
     function goToNextDay() {
       const day = dayOf(all[cur]);
       for (let step = 1; step < all.length; step++) {
         const i = (cur + step) % all.length;
-        if (dayOf(all[i]) !== day) {
+        if (dayOf(all[i]) !== day && visitResultOf(all[i]) === undefined) {
           cur = i;
           return;
         }
       }
-      goToNextUnscored();
+      goToNextUnscoredThisVisit();
     }
 
-    // Shift: cycle through the scored images (same test render() uses for the ✓/✕
-    // badge), wrapping to the start. Returns false when no image is scored yet.
+    // Shift: cycle through the images showing ✓/✕ (earlier visits included), wrapping to
+    // the start. Returns false when none does.
     function goToNextScored() {
       for (let step = 1; step <= all.length; step++) {
         const i = (cur + step) % all.length;
-        if (all[i].isInSpected != null || all[i].result != null) {
+        if (hasResult(all[i])) {
           cur = i;
           render();
           return true;
@@ -933,18 +959,27 @@
         return;
       }
       const resultImg = pass ? 1 : 0;
-      const prev = { isInSpected: it.isInSpected, result: it.result };
+      const scoreToken = {};
+      // A failed save rolls the image back to this visit's last saved score, unless a newer
+      // score of the same image is queued behind it: that one decides.
+      const undoScore = () => {
+        if (visit.latestScoreTokensByImageId.get(it.id) !== scoreToken) return;
+        const saved = visit.savedResultsByImageId;
+        if (saved.has(it.id)) visit.resultsByImageId.set(it.id, saved.get(it.id));
+        else visit.resultsByImageId.delete(it.id);
+        if (popupApi) popupApi.rerender();
+      };
 
       // Optimistic ngay (UI mượt)
-      it.isInSpected = 1;
-      it.result = resultImg;
+      visit.latestScoreTokensByImageId.set(it.id, scoreToken);
+      visit.resultsByImageId.set(it.id, resultImg);
       goToNextDay();
       render();
       toast((pass ? "✓ Đạt" : "✗ Chưa đạt") + " — đang lưu...");
 
-      if (pass && need && !autoPassArmed && countPassed(all) >= need) {
+      if (pass && need && !autoPassArmed && countPassed(all, visit) >= need) {
         autoPassArmed = true;
-        autoPassWhenEnough(all).then((acted) => {
+        autoPassWhenEnough(all, visit).then((acted) => {
           if (!acted) autoPassArmed = false;
         });
       }
@@ -952,21 +987,18 @@
       // Nối vào hàng đợi: chạy sau khi lần chấm trước xong + đã rotate token
       scoreQueue = scoreQueue.then(async () => {
         if (!popupToken) {
-          it.isInSpected = prev.isInSpected;
-          it.result = prev.result;
-          render();
+          undoScore();
           toast("Thiếu token — mở lại ảnh để lấy token");
           return;
         }
         const res = await updateResultApi(it.id, resultImg);
         if (res && res.ok && res.status === 200) {
           if (res.token) popupToken = res.token; // rotate token
+          visit.savedResultsByImageId.set(it.id, resultImg);
           toast((pass ? "✓ Đạt" : "✗ Chưa đạt") + " — đã lưu");
         } else {
           // Hoàn tác trạng thái cũ khi lưu thất bại
-          it.isInSpected = prev.isInSpected;
-          it.result = prev.result;
-          render();
+          undoScore();
           const code = res && res.status != null ? res.status : "?";
           const why = res && res.error ? " — " + res.error : "";
           toast(`Lưu thất bại (HTTP ${code})${why} — đã hoàn tác`);
@@ -980,6 +1012,7 @@
       next: () => go(1),
       scoreCurrent: (pass) => score(all[cur], pass),
       nextScored: goToNextScored,
+      rerender: render,
       first: () => go(-cur),
     };
 
@@ -1082,6 +1115,7 @@
     closeImagePopup();
     popupItems = []; // ảnh của KH cũ không được tính cho KH mới
     popupKh = null;
+    currentVisit = createVisit();
     closeNativeFancybox();
 
     // Chương trình đang chấm (nếu có) -> sau khi search sẽ tự bấm album khớp
@@ -1375,6 +1409,9 @@
         ev.preventDefault();
         hideDupBox();
         runPendingAutoNext();
+      } else if (ev.key === "Tab") {
+        // Same reason as Tab in the image popup (global keydown handler).
+        ev.preventDefault();
       }
     });
   }
@@ -1815,9 +1852,9 @@
           e.preventDefault();
           if (popupApi) popupApi.first();
         } else if (e.key === "Tab") {
-          // Same as the ✕ button: close only, unlike Esc it saves no result.
+          // Swallowed: moving focus would let Enter press whatever control it lands on, and
+          // leave focus in a page input once the popup closes, which then eats the shortcuts.
           e.preventDefault();
-          closeImagePopup();
         } else if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
           e.preventDefault();
           if (popupApi) popupApi.prev();
